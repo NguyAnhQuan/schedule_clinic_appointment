@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AdminApi, getAuthToken, getAuthUser, setAuthUser, setAuthToken, FILE_BASE } from '../services/api';
 
-function PublicNavbar() {
+function PublicNavbar({ minimal = false }) {
   const [user, setUser] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -103,7 +103,7 @@ function PublicNavbar() {
 
   return (
     <>
-      <header className="bg-white shadow-sm">
+      <header className="bg-white shadow-sm sticky top-0 z-30">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 hover:opacity-90">
             <span className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
@@ -117,20 +117,22 @@ function PublicNavbar() {
             </div>
           </a>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-            <a href="/" className="font-medium hover:text-primary">
-              Trang chủ
-            </a>
-            <a href="/dich-vu" className="hover:text-primary">
-              Dịch vụ
-            </a>
-            <a href="/bac-si" className="hover:text-primary">
-              Đội ngũ bác sĩ
-            </a>
-            <a href="/tra-cuu" className="hover:text-primary">
-              Tra cứu lịch hẹn
-            </a>
-          </nav>
+          {!minimal && (
+            <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
+              <a href="/" className="font-medium hover:text-primary">
+                Trang chủ
+              </a>
+              <a href="/dich-vu" className="hover:text-primary">
+                Dịch vụ
+              </a>
+              <a href="/bac-si" className="hover:text-primary">
+                Đội ngũ bác sĩ
+              </a>
+              <a href="/tra-cuu" className="hover:text-primary">
+                Tra cứu lịch hẹn
+              </a>
+            </nav>
+          )}
 
           <div className="flex items-center gap-2">
             {isLoggedIn && user ? (
@@ -282,12 +284,14 @@ function PublicNavbar() {
                   </div>
 
                   <div className="pt-2 border-t border-slate-100">
-                    <a
-                      href="/admin"
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Vào trang quản trị →
-                    </a>
+                    {(user?.role === 'admin' || user?.role === 'staff' || user?.role === 'dentist') && (
+                      <a
+                        href="/admin"
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Vào trang quản trị →
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={handleLogout}

@@ -54,7 +54,7 @@ async function getDentists(req, res) {
              COALESCE(r.avg_rating, 0) AS avg_rating,
              COALESCE(r.rating_count, 0) AS rating_count
       FROM dentists d
-      JOIN users u ON d.user_id = u.id
+      JOIN users u ON d.user_id = u.id AND u.role = 'dentist'
       LEFT JOIN (
         SELECT a.dentist_id,
                AVG(ar.rating_stars) AS avg_rating,
@@ -91,7 +91,7 @@ async function getDentists(req, res) {
                  d.specialty, d.experience_year, d.description,
                  0 AS avg_rating, 0 AS rating_count
           FROM dentists d
-          JOIN users u ON d.user_id = u.id
+          JOIN users u ON d.user_id = u.id AND u.role = 'dentist'
           WHERE d.is_active = 1
         `;
         const fallbackParams = [];
@@ -123,7 +123,7 @@ async function getDentistById(req, res) {
       `SELECT d.id, d.avatar_url, d.specialty, d.experience_year, d.description,
               u.full_name, u.email, u.phone
        FROM dentists d
-       JOIN users u ON d.user_id = u.id
+       JOIN users u ON d.user_id = u.id AND u.role = 'dentist'
        WHERE d.id = ? AND d.is_active = 1
        LIMIT 1`,
       [id]

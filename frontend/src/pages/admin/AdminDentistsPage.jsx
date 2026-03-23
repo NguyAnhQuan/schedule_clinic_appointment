@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminApi, getAuthToken, FILE_BASE } from '../../services/api';
+import { AdminApi, getAuthToken, getAuthUser, FILE_BASE } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
 function AdminDentistsPage() {
   const navigate = useNavigate();
+  const authUser = getAuthUser();
+  const role = authUser?.role;
   const [items, setItems] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -255,14 +257,16 @@ function AdminDentistsPage() {
                           <span className="material-icons text-sm">edit</span>
                           Sửa
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteId(d.id)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50"
-                        >
-                          <span className="material-icons text-sm">delete</span>
-                          Xoá
-                        </button>
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteId(d.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-[11px] text-red-600 hover:bg-red-50"
+                          >
+                            <span className="material-icons text-sm">delete</span>
+                            Xoá
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -541,7 +545,7 @@ function AdminDentistsPage() {
         )}
 
         {/* Modal xác nhận xoá */}
-        {deleteId && (
+        {deleteId && role === 'admin' && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
             <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 p-5 shadow-xl">
               <h2 className="text-sm font-semibold text-slate-900 mb-2">Xác nhận xoá bác sĩ</h2>

@@ -18,13 +18,13 @@ function AdminSettingsPage() {
   });
 
   const [rolePermissions, setRolePermissions] = useState({
-    dentist: {
-      modify_appointments: true,
-      access_financials: false,
-    },
     staff: {
-      modify_appointments: true,
-      access_financials: false,
+      dashboard: true,
+      appointments: true,
+      patients: true,
+      dentists_view_edit: true,
+      calendar_overview: true,
+      staff_schedules: true,
     },
   });
 
@@ -62,11 +62,14 @@ function AdminSettingsPage() {
           const roles = data.role_permissions_json
             ? JSON.parse(data.role_permissions_json)
             : null;
-          if (roles && typeof roles === 'object') {
-            setRolePermissions((prev) => ({
-              dentist: { ...prev.dentist, ...(roles.dentist || {}) },
-              staff: { ...prev.staff, ...(roles.staff || {}) },
-            }));
+          if (roles && typeof roles === 'object' && roles.staff) {
+            setRolePermissions((prev) => {
+              const next = {
+                staff: { ...prev.staff, ...roles.staff },
+              };
+              localStorage.setItem('clinic_role_permissions', JSON.stringify(next));
+              return next;
+            });
           }
         } catch {
           // ignore
@@ -99,6 +102,8 @@ function AdminSettingsPage() {
         role_permissions: rolePermissions,
         security,
       });
+      // Lưu xuống localStorage để frontend (menu, guard) đọc ngay
+      localStorage.setItem('clinic_role_permissions', JSON.stringify(rolePermissions));
       setSuccess('Đã lưu System Settings.');
     } catch (err) {
       setError(err.message || 'Lưu cấu hình thất bại');
@@ -128,10 +133,10 @@ function AdminSettingsPage() {
     if (f) handleLogoFile(f);
   }
 
-  function togglePermission(role, key, value) {
+  function togglePermission(roleKey, key, value) {
     setRolePermissions((prev) => ({
       ...prev,
-      [role]: { ...prev[role], [key]: value },
+      [roleKey]: { ...prev[roleKey], [key]: value },
     }));
   }
 
@@ -326,94 +331,102 @@ function AdminSettingsPage() {
                       <thead className="bg-slate-50">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Permission
+                            Quyền (nhân viên)
                           </th>
                           <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Admin
-                          </th>
-                          <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Dentist
-                          </th>
-                          <th className="px-6 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Receptionist
+                            Staff
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-slate-200">
                         <tr>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                            View Patient Records
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-green-500 text-sm">check_circle</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-green-500 text-sm">check_circle</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-green-500 text-sm">check_circle</span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                            Modify Appointments
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-green-500 text-sm">check_circle</span>
+                            Dashboard / Thống kê
                           </td>
                           <td className="px-6 py-4 text-center">
                             <input
                               type="checkbox"
-                              checked={!!rolePermissions.dentist.modify_appointments}
-                              onChange={(e) => togglePermission('dentist', 'modify_appointments', e.target.checked)}
-                              className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={!!rolePermissions.staff.modify_appointments}
-                              onChange={(e) => togglePermission('staff', 'modify_appointments', e.target.checked)}
+                              checked={!!rolePermissions.staff.dashboard}
+                              onChange={(e) =>
+                                togglePermission('staff', 'dashboard', e.target.checked)
+                              }
                               className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
                             />
                           </td>
                         </tr>
                         <tr>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                            Access Financials
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-green-500 text-sm">check_circle</span>
+                            Quản lý lịch hẹn
                           </td>
                           <td className="px-6 py-4 text-center">
                             <input
                               type="checkbox"
-                              checked={!!rolePermissions.dentist.access_financials}
-                              onChange={(e) => togglePermission('dentist', 'access_financials', e.target.checked)}
-                              className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <input
-                              type="checkbox"
-                              checked={!!rolePermissions.staff.access_financials}
-                              onChange={(e) => togglePermission('staff', 'access_financials', e.target.checked)}
+                              checked={!!rolePermissions.staff.appointments}
+                              onChange={(e) =>
+                                togglePermission('staff', 'appointments', e.target.checked)
+                              }
                               className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
                             />
                           </td>
                         </tr>
                         <tr>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                            System Configuration
+                            Quản lý bệnh nhân
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-green-500 text-sm">check_circle</span>
+                            <input
+                              type="checkbox"
+                              checked={!!rolePermissions.staff.patients}
+                              onChange={(e) =>
+                                togglePermission('staff', 'patients', e.target.checked)
+                              }
+                              className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
+                            />
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                            Quản lý bác sĩ (xem + sửa)
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-slate-300 text-sm">remove_circle_outline</span>
+                            <input
+                              type="checkbox"
+                              checked={!!rolePermissions.staff.dentists_view_edit}
+                              onChange={(e) =>
+                                togglePermission('staff', 'dentists_view_edit', e.target.checked)
+                              }
+                              className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
+                            />
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                            Tổng quan lịch
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <span className="material-icons text-slate-300 text-sm">remove_circle_outline</span>
+                            <input
+                              type="checkbox"
+                              checked={!!rolePermissions.staff.calendar_overview}
+                              onChange={(e) =>
+                                togglePermission('staff', 'calendar_overview', e.target.checked)
+                              }
+                              className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
+                            />
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                            Phân ca
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={!!rolePermissions.staff.staff_schedules}
+                              onChange={(e) =>
+                                togglePermission('staff', 'staff_schedules', e.target.checked)
+                              }
+                              className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"
+                            />
                           </td>
                         </tr>
                       </tbody>

@@ -24,8 +24,17 @@ function AdminLoginPage() {
     setLoading(true);
     setError('');
     try {
-      await AdminApi.login(email, password);
-      navigate('/admin');
+      const data = await AdminApi.login(email, password);
+      const role = data?.user?.role;
+      if (role === 'dentist') {
+        navigate('/admin/staff-schedules');
+      } else if (role === 'admin' || role === 'staff') {
+        // admin & staff mặc định về dashboard
+        navigate('/admin');
+      } else {
+        // khách hàng (customer) quay về trang chủ
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message || 'Đăng nhập thất bại');
     } finally {
@@ -54,7 +63,12 @@ function AdminLoginPage() {
         signupPassword
       );
       setSignupSuccess(data.message || 'Đăng ký thành công.');
-      if (data.token) {
+      if (data.token && data.user?.role) {
+        if (data.user.role === 'customer') {
+          navigate('/');
+          return;
+        }
+        // phòng khi sau này đăng ký loại tài khoản nội bộ
         navigate('/admin');
         return;
       }

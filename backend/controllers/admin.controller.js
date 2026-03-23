@@ -502,7 +502,7 @@ async function createUser(req, res) {
     return res.status(400).json({ message: 'Thiếu họ tên, email hoặc mật khẩu' });
   }
   const trimmedEmail = String(email).trim().toLowerCase();
-  const allowedRoles = ['admin', 'dentist', 'staff'];
+  const allowedRoles = ['admin', 'dentist', 'staff', 'customer'];
   const finalRole = allowedRoles.includes(role) ? role : 'staff';
   try {
     const [existing] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [
@@ -546,7 +546,7 @@ async function updateUser(req, res) {
       updates.push('email = ?');
       params.push(String(email).trim().toLowerCase());
     }
-    if (role !== undefined && ['admin', 'dentist', 'staff'].includes(role)) {
+    if (role !== undefined && ['admin', 'dentist', 'staff', 'customer'].includes(role)) {
       updates.push('role = ?');
       params.push(role);
     }
@@ -1156,7 +1156,7 @@ async function getStaffSchedules(req, res) {
     }));
 
     const [dentists] = await pool.query(
-      `SELECT d.id, d.is_active, u.full_name 
+      `SELECT d.id, d.user_id, d.is_active, u.full_name 
        FROM dentists d 
        JOIN users u ON d.user_id = u.id 
        ORDER BY u.full_name`
@@ -1246,30 +1246,77 @@ async function getStaffSchedules(req, res) {
   }
 }
 
-/** PUT body: { assignments: [ { shift_id, work_date, dentist_ids: [1,2] } ] } — ghi đè theo (shift_id, work_date) */
 async function updateStaffSchedules(req, res) {
   const { assignments } = req.body || {};
   if (!Array.isArray(assignments)) {
     return res.status(400).json({ message: 'Thiếu mảng assignments' });
   }
+
+  const role = req.user && req.user.role;
+  let selfDentistId = null;
+
+  // Nếu là bác sĩ: chỉ được phép chỉnh ca của chính mình
+  if (role === 'dentist') {
+    try {
+      const [[dentistRow]] = await pool.query(
+        'SELECT id FROM dentists WHERE user_id = ? LIMIT 1',
+        [req.user.id]
+      );
+      if (!dentistRow) {
+        return res
+          .status(403)
+          .json({ message: 'Tài khoản hiện tại không gắn với hồ sơ bác sĩ nào' });
+      }
+      selfDentistId = dentistRow.id;
+    } catch (err) {
+      console.error('updateStaffSchedules dentist lookup error', err);
+      return res.status(500).json({ message: 'Lỗi hệ thống' });
+    }
+  }
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
     for (const item of assignments) {
       const { shift_id, work_date, dentist_ids } = item;
       if (!shift_id || !work_date) continue;
-      await conn.query(
-        'DELETE FROM staff_shifts WHERE shift_id = ? AND work_date = ?',
-        [shift_id, work_date]
-      );
-      const ids = Array.isArray(dentist_ids) ? dentist_ids.filter((x) => x != null && x !== '') : [];
-      for (const dentist_id of ids) {
+
+      const ids = Array.isArray(dentist_ids)
+        ? dentist_ids.filter((x) => x != null && x !== '')
+        : [];
+
+      if (role === 'dentist') {
+        // Bác sĩ chỉ được bật/tắt ca của chính mình, không được thay đổi phân công của người khác
+        const wantAssigned = ids.map(Number).includes(Number(selfDentistId));
+
+        // Xoá phân công hiện tại của chính bác sĩ cho ca + ngày này
         await conn.query(
-          `INSERT INTO staff_shifts (dentist_id, shift_id, work_date, status)
-           VALUES (?, ?, ?, 'assigned')
-           ON DUPLICATE KEY UPDATE status = 'assigned'`,
-          [dentist_id, shift_id, work_date]
+          'DELETE FROM staff_shifts WHERE shift_id = ? AND work_date = ? AND dentist_id = ?',
+          [shift_id, work_date, selfDentistId]
         );
+
+        if (wantAssigned) {
+          await conn.query(
+            `INSERT INTO staff_shifts (dentist_id, shift_id, work_date, status)
+             VALUES (?, ?, ?, 'assigned')
+             ON DUPLICATE KEY UPDATE status = 'assigned'`,
+            [selfDentistId, shift_id, work_date]
+          );
+        }
+      } else {
+        // admin / staff: giữ hành vi cũ – ghi đè toàn bộ danh sách bác sĩ cho (shift_id, work_date)
+        await conn.query(
+          'DELETE FROM staff_shifts WHERE shift_id = ? AND work_date = ?',
+          [shift_id, work_date]
+        );
+        for (const dentist_id of ids) {
+          await conn.query(
+            `INSERT INTO staff_shifts (dentist_id, shift_id, work_date, status)
+             VALUES (?, ?, ?, 'assigned')
+             ON DUPLICATE KEY UPDATE status = 'assigned'`,
+            [dentist_id, shift_id, work_date]
+          );
+        }
       }
     }
     await conn.commit();

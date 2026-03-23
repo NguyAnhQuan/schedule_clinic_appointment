@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminApi, getAuthToken } from '../../services/api';
+import { AdminApi, getAuthToken, getAuthUser } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
 function toLocalDateStr(date) {
@@ -29,6 +29,8 @@ function formatMonthLabel(dateStr) {
 
 function AdminCalendarPage() {
   const navigate = useNavigate();
+  const authUser = getAuthUser();
+  const role = authUser?.role;
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     today.setDate(1);
@@ -157,8 +159,8 @@ function AdminCalendarPage() {
   async function handleClickDate(day) {
     if (!day) return;
     const dateStr = toLocalDateStr(new Date(year, month, day));
-    // Chỉ cho chỉnh các ngày sau hôm nay (hôm nay và quá khứ không click)
-    if (dateStr <= todayStr) return;
+    // Chỉ admin + staff mới được chỉnh, và chỉ cho các ngày sau hôm nay
+    if (role === 'dentist' || dateStr <= todayStr) return;
     const isClosed = isClosedDate(dateStr);
     setModalDate(dateStr);
     setModalStatus(isClosed ? 'closed' : 'open');

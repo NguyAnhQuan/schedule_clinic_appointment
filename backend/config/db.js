@@ -41,7 +41,7 @@ async function initDatabase() {
         phone VARCHAR(20),
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        role ENUM('admin','dentist','staff') NOT NULL DEFAULT 'staff',
+        role ENUM('admin','dentist','staff','customer') NOT NULL DEFAULT 'customer',
         status ENUM('active','inactive') NOT NULL DEFAULT 'active',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -209,6 +209,19 @@ async function initDatabase() {
     `;
 
     await connection.query(schemaSql);
+
+    // Đảm bảo cấu trúc bảng/cột mới tồn tại nếu DB đã tạo từ trước
+    const [userRoleEnum] = await connection.query(
+      `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'`,
+      [DB_NAME]
+    );
+    const roleType = userRoleEnum[0]?.COLUMN_TYPE || '';
+    if (!roleType.includes('customer')) {
+      await connection.query(
+        "ALTER TABLE users MODIFY COLUMN role ENUM('admin','dentist','staff','customer') NOT NULL DEFAULT 'customer'"
+      );
+    }
 
     // Đảm bảo các cột mới tồn tại nếu DB đã tạo từ trước
     const [serviceThumbCols] = await connection.query(

@@ -118,7 +118,7 @@ function AdminAccountsPage() {
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Danh sách tài khoản</h1>
             <p className="text-[11px] text-slate-500 mt-1">
-              Quản lý tài khoản đăng nhập hệ thống (admin, bác sĩ, nhân viên).
+              Quản lý tài khoản đăng nhập nội bộ (admin, bác sĩ, nhân viên, khách hàng).
             </p>
           </div>
           <button
@@ -288,6 +288,7 @@ function AdminAccountsPage() {
                   <option value="admin">Admin</option>
                   <option value="dentist">Bác sĩ</option>
                   <option value="staff">Nhân viên</option>
+                  <option value="customer">Khách hàng</option>
                 </select>
               </div>
               <div className="flex gap-2 pt-2">
@@ -377,6 +378,7 @@ function AdminAccountsPage() {
                   <option value="admin">Admin</option>
                   <option value="dentist">Bác sĩ</option>
                   <option value="staff">Nhân viên</option>
+                  <option value="customer">Khách hàng</option>
                 </select>
               </div>
               <div>

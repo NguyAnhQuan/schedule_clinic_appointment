@@ -26,7 +26,7 @@ async function register(req, res) {
     const passwordHash = await bcrypt.hash(String(password), 10);
     const [result] = await pool.query(
       `INSERT INTO users (full_name, phone, email, password_hash, role, status)
-       VALUES (?, ?, ?, ?, 'staff', 'active')`,
+       VALUES (?, ?, ?, ?, 'customer', 'active')`,
       [String(full_name).trim(), phone ? String(phone).trim() : null, trimmedEmail, passwordHash]
     );
     const [rows] = await pool.query(

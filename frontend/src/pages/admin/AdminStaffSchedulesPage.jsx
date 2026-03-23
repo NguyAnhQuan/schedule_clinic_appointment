@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminApi, getAuthToken } from '../../services/api';
+import { AdminApi, getAuthToken, getAuthUser } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
 function formatDateLabel(dateStr) {
@@ -22,6 +22,8 @@ function toLocalDateStr(date) {
 
 function AdminStaffSchedulesPage() {
   const navigate = useNavigate();
+  const authUser = getAuthUser();
+  const role = authUser?.role;
 
   const [search, setSearch] = useState('');
   const [data, setData] = useState({ dates: [], shifts: [], assignments: [], dentists: [], stats: [] });
@@ -45,11 +47,19 @@ function AdminStaffSchedulesPage() {
     setError('');
     try {
       const res = await AdminApi.getStaffSchedules();
+      let dentists = res.dentists || [];
+
+      // Nếu là bác sĩ: chỉ xem và chỉnh sửa ca của chính mình
+      if (role === 'dentist' && authUser?.id && Array.isArray(dentists)) {
+        const own = dentists.filter((d) => Number(d.user_id) === Number(authUser.id));
+        dentists = own;
+      }
+
       setData({
         dates: res.dates || [],
         shifts: res.shifts || [],
         assignments: res.assignments || [],
-        dentists: res.dentists || [],
+        dentists,
         stats: res.stats || [],
       });
     } catch (err) {

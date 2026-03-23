@@ -90,6 +90,17 @@ export function getAuthUser() {
   }
 }
 
+const ROLE_PERMS_KEY = 'clinic_role_permissions';
+
+export function getStoredRolePermissions() {
+  try {
+    const raw = localStorage.getItem(ROLE_PERMS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function authHeaders() {
   const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
