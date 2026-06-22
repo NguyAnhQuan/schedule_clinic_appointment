@@ -93,8 +93,7 @@ function AdminLoginPage() {
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage:
-              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCU6BzCTbMJSsDYrAJErXr93ETDXWUzQIqqLfh-3TVAx1x24y5PxUWvhSe3JRg92taZxMjCu91L5nvR-TFQ87NY-Ky0J118VygYjGnsSrg5xW5DXIrAQ7NYOyShnzqnDxTtMbV_bIYlMQ5aFCaX0BEMWfUULXTZU0wz1OfLax-KjSoZ9g5_4ebMP6VXR3aDQ8DMMHm9Xqz_VmRbw4Pc56pRQGTvGAeW8P1tf04YsJK2eMODaXKJaCg3G3zzoF40XuZPN2TMHkAQ3BI')",
+            backgroundImage: "url('/images/login-bg.svg')",
           }}
         />
         <div className="relative z-20 flex flex-col justify-between p-10 text-white w-full">
@@ -117,17 +116,17 @@ function AdminLoginPage() {
             <div className="flex -space-x-3">
               <img
                 className="h-9 w-9 rounded-full border-2 border-primary object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOXbDhx_fs_3YoEt1t9QPvPwZj1jEh-8r6lPdJ4LKoxJkwWA2GMqNrQApN2aDCg5N3dL7ct3ueg2du-XgPpc6LKRbPk3YjcXsGeDbb2nw1gK89h6SS6QcUkCRhSuDFFyeGl1W3MrUFTvEE55Fx6dL4sAnz61mqfP8cOt5eTie8WlQr4Et0AarT09bAG05pdAxAuiy4dIf0cI_EQwV6g1V9-HAkf0rt3MuhX0BH7r9Xmrt7kOBXp3T84WemLlPHtYW_eZH2eWQ0Olo"
+                src="/images/team-1.svg"
                 alt="Bác sĩ 1"
               />
               <img
                 className="h-9 w-9 rounded-full border-2 border-primary object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvn0_maGSuvrYBWhvrWBRyU6ibxu5G2MjybKQN-uWSEg1FzSghUe5QHabxCttQDTvK6Qa0pZCgjPKxSGReKDFXxIpS-0XNzUNT9RGhIG4nObNMw0yLmZkMK0rZEWGozhHaJ7rX5XRvf75S43fh305U2fyPpy6eub6S_ZRJPBOIHIdB8XPwTqJLX-9JnVHHwwyjcO9iu2s3o1TGOtZt2kIHfCHLoWX7q63To24zLns42g2FnfKIGnkOY8lbv2AwbTv9vJ8YCBkvD-M"
+                src="/images/team-2.svg"
                 alt="Bác sĩ 2"
               />
               <img
                 className="h-9 w-9 rounded-full border-2 border-primary object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBf6f_tb8RcVoS4nmbku_224QjqkjTzr4utAEBHMYsGO7fLxuzPKBY8_C0fbeWCJ1Q4Jw9YWgYN6bN6KGrqXS0pL6lL1myaXwt1z8syV-WhFw-CIlmBDhDd_DNi5qE3HbxdGTKxG2U0ZQ7J1NpZLxKH0atq4GxBwt8jWfcF9w6lVO_dVL4BqIFpYMRItNQ6ikHCrqA-oi7MRzJ8qpzLl-gVTmGzqlSFDGzXEW3PBXFf2UHcBtx7ECJ5MudMh-vxG2XMqPd9gtx9Yag"
+                src="/images/team-3.svg"
                 alt="Điều dưỡng"
               />
             </div>

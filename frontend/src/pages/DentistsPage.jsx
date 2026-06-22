@@ -11,18 +11,17 @@ function DentistsPage() {
   const [error, setError] = useState('');
   const [detailId, setDetailId] = useState(null);
   const [detail, setDetail] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailFetchedId, setDetailFetchedId] = useState(null);
   const [detailError, setDetailError] = useState('');
+  const displayDetail =
+    detailId && String(detailFetchedId) === String(detailId) ? detail : null;
+  const detailLoading = !!detailId && String(detailFetchedId) !== String(detailId);
+  const displayDetailError = detailId ? detailError : '';
 
   function renderStars(avg = 0) {
     const n = Math.max(0, Math.min(5, Math.round(Number(avg) || 0)));
     return `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
   }
-
-  useEffect(() => {
-    loadDentists();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function loadDentists(params = {}) {
     setLoading(true);
@@ -33,30 +32,47 @@ function DentistsPage() {
       .finally(() => setLoading(false));
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    PublicApi.getDentists()
+      .then((data) => {
+        if (!cancelled) setDentists(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Không tải được danh sách bác sĩ');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function handleSearch(e) {
     e.preventDefault();
     loadDentists({ q, specialty });
   }
 
   useEffect(() => {
-    if (!detailId) {
-      setDetail(null);
-      setDetailError('');
-      return;
-    }
-    setDetailLoading(true);
-    setDetail(null);
-    setDetailError('');
+    if (!detailId) return;
+    let cancelled = false;
     PublicApi.getDentistDetail(String(detailId))
       .then((data) => {
+        if (cancelled) return;
         setDetail(data);
+        setDetailFetchedId(detailId);
         setDetailError('');
       })
       .catch((err) => {
+        if (cancelled) return;
         setDetail(null);
+        setDetailFetchedId(detailId);
         setDetailError(err?.message || 'Không tải được thông tin bác sĩ');
-      })
-      .finally(() => setDetailLoading(false));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [detailId]);
 
   return (
@@ -208,47 +224,47 @@ function DentistsPage() {
                 {detailLoading && (
                   <div className="py-8 text-center text-sm text-slate-500">Đang tải...</div>
                 )}
-                {!detailLoading && detail && (
+                {!detailLoading && displayDetail && (
                   <div className="space-y-4">
                     <div className="flex gap-4">
                       <div className="h-20 w-20 rounded-full overflow-hidden bg-primary/10 flex-shrink-0 flex items-center justify-center text-2xl font-semibold text-primary">
-                        {detail.avatar_url ? (
+                        {displayDetail.avatar_url ? (
                           <img
-                            src={FILE_BASE + (detail.avatar_url.startsWith('/') ? detail.avatar_url : `/${detail.avatar_url}`)}
-                            alt={detail.full_name}
+                            src={FILE_BASE + (displayDetail.avatar_url.startsWith('/') ? displayDetail.avatar_url : `/${displayDetail.avatar_url}`)}
+                            alt={displayDetail.full_name}
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          detail.full_name?.charAt(0) || 'B'
+                          displayDetail.full_name?.charAt(0) || 'B'
                         )}
                       </div>
                       <div>
-                        <div className="font-semibold text-slate-900">{detail.full_name}</div>
-                        <div className="text-sm text-slate-500">{detail.specialty || 'Nha khoa'}</div>
+                        <div className="font-semibold text-slate-900">{displayDetail.full_name}</div>
+                        <div className="text-sm text-slate-500">{displayDetail.specialty || 'Nha khoa'}</div>
                         <div className="text-xs text-slate-500">
-                          {detail.experience_year ?? 0}+ năm kinh nghiệm
+                          {displayDetail.experience_year ?? 0}+ năm kinh nghiệm
                         </div>
-                        {detail.phone && (
-                          <div className="text-xs text-slate-600 mt-1">Liên hệ: {detail.phone}</div>
+                        {displayDetail.phone && (
+                          <div className="text-xs text-slate-600 mt-1">Liên hệ: {displayDetail.phone}</div>
                         )}
                       </div>
                     </div>
-                    {detail.description && (
+                    {displayDetail.description && (
                       <div>
                         <div className="text-xs font-medium text-slate-700 mb-1">Giới thiệu</div>
-                        <p className="text-xs text-slate-600 whitespace-pre-wrap">{detail.description}</p>
+                        <p className="text-xs text-slate-600 whitespace-pre-wrap">{displayDetail.description}</p>
                       </div>
                     )}
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                       <div className="flex items-center justify-between">
                         <div className="text-xs font-medium text-slate-700">Đánh giá</div>
-                        {Number(detail.rating_count) > 0 ? (
+                        {Number(displayDetail.rating_count) > 0 ? (
                           <div className="text-[11px] text-slate-600">
                             <span className="text-amber-600 font-medium">
-                              {renderStars(detail.avg_rating)}
+                              {renderStars(displayDetail.avg_rating)}
                             </span>
                             <span className="ml-2">
-                              {Number(detail.avg_rating || 0).toFixed(1)}/5 ({detail.rating_count})
+                              {Number(displayDetail.avg_rating || 0).toFixed(1)}/5 ({displayDetail.rating_count})
                             </span>
                           </div>
                         ) : (
@@ -256,9 +272,9 @@ function DentistsPage() {
                         )}
                       </div>
 
-                      {detail.reviews?.length ? (
+                      {displayDetail.reviews?.length ? (
                         <div className="mt-3 max-h-56 overflow-y-auto space-y-2">
-                          {detail.reviews.map((r) => (
+                          {displayDetail.reviews.map((r) => (
                             <div
                               key={`${r.appointment_id}-${r.created_at}`}
                               className="rounded-lg bg-white border border-slate-100 px-3 py-2"
@@ -288,9 +304,9 @@ function DentistsPage() {
                       <div className="text-xs font-medium text-slate-700 mb-2">
                         Các dịch vụ bác sĩ thực hiện
                       </div>
-                      {detail.services?.length ? (
+                      {displayDetail.services?.length ? (
                         <ul className="space-y-1.5">
-                          {detail.services.map((s) => (
+                          {displayDetail.services.map((s) => (
                             <li
                               key={s.id}
                               className="text-xs text-slate-600 flex justify-between items-center rounded-lg bg-slate-50 px-3 py-2"
@@ -308,7 +324,7 @@ function DentistsPage() {
                     </div>
                     <div className="pt-2">
                       <a
-                        href={`/dat-lich?dentistId=${detail.id}`}
+                        href={`/dat-lich?dentistId=${displayDetail.id}`}
                         className="inline-flex items-center rounded-button bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                       >
                         Đặt lịch với bác sĩ này
@@ -316,10 +332,10 @@ function DentistsPage() {
                     </div>
                   </div>
                 )}
-                {!detailLoading && detailError && (
-                  <div className="py-6 text-center text-sm text-red-600">{detailError}</div>
+                {!detailLoading && displayDetailError && (
+                  <div className="py-6 text-center text-sm text-red-600">{displayDetailError}</div>
                 )}
-                {!detailLoading && !detail && !detailError && (
+                {!detailLoading && !displayDetail && !displayDetailError && (
                   <div className="py-6 text-center text-sm text-slate-500">
                     Không tải được thông tin.
                   </div>

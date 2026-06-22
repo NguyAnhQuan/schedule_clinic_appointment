@@ -1,11 +1,15 @@
-# backend
+# backend (cổng 4100)
 cd backend
 npm install
+npm run seed-images
 npm run dev
 
-# frontend
+# frontend (cổng 5183)
 cd frontend
 npm install
 npm run dev
+
+# Truy cập: http://<IP-VPS>:5183
+# API: http://<IP-VPS>:4100/api
 
 1 admin (admin@clinic.local), 1 dentist, 1 staff (mật khẩu đều admin123, đã hash bcrypt).

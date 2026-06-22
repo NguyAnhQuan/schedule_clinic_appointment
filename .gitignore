@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment (không commit secret)
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Build
+frontend/dist/
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

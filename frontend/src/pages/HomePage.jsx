@@ -71,7 +71,7 @@ function HomePage() {
                 <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-white p-2">
                   <div className="aspect-[4/3] relative rounded-xl overflow-hidden bg-slate-100">
                     <img
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyYkRfIHCjaVkhgoMa7RN5lmz25v8uxFXfjvXv7_mTjXSsRSs4qH3LHWsoHtOFdkGlef961s9SGTvxUA7t88v85mi1QT5z2NJdhwdEXqZSICW-D2HzgQb7Ch9hm05ULCt944jJdZ7ejKFrtKcbI4J9wIMJW1gF9hQDGXQD1zkC5vcRSuSRnKqpV4VEv0_kt1q4ZunnCK4Hh5E8b4WLgykH4sPqmlcyKaBw-In7GF-vVPORVzamlEoqPaph1cy8fZEztk87RIGrp90"
+                      src="/images/hero-dental.svg"
                       alt="Bác sĩ nha khoa trong phòng khám hiện đại"
                       className="w-full h-full object-cover"
                     />

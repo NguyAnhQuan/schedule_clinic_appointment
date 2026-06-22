@@ -164,14 +164,12 @@ function AdminDashboardPage() {
                 strokeLinecap="round"
                 strokeWidth="3"
               />
-              {[0, 40, 80, 100].map((x, i) => (
+              {[0, 40, 80, 100].map((x) => (
                 <circle
-                  // điểm minh hoạ
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={i}
+                  key={`chart-point-${x}`}
                   className="fill-white stroke-primary stroke-2"
                   cx={x}
-                  cy={i === 0 ? 60 : i === 1 ? 55 : i === 2 ? 30 : 20}
+                  cy={x === 0 ? 60 : x === 40 ? 55 : x === 80 ? 30 : 20}
                   r="2"
                 />
               ))}

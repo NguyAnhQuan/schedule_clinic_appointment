@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
-import { PublicApi } from '../services/api';
+import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
-const FILE_BASE = API_BASE.replace(/\/api$/, '');
 
 function inferCategory(name) {
   const lower = (name || '').toLowerCase();

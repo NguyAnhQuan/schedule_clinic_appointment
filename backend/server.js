@@ -32,7 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/admin', adminRoutes);
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4100;
 
 async function start() {
   try {

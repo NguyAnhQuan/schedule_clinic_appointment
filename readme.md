@@ -69,7 +69,7 @@ DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=123456
 DB_NAME=dental_clinic
-PORT=4000
+PORT=4100
 JWT_SECRET=supersecret_jwt_key_change_me
 ```
 
@@ -81,7 +81,7 @@ npm install
 npm run dev
 ```
 
-Server chạy tại `http://localhost:4000`. Lần đầu chạy sẽ tự tạo database `dental_clinic` và các bảng (kèm seed: 1 admin, 1 dentist, 1 staff; mật khẩu đều `admin123`), đồng thời seed:
+Server chạy tại `http://localhost:4100`. Lần đầu chạy sẽ tự tạo database `dental_clinic` và các bảng (kèm seed: 1 admin, 1 dentist, 1 staff; mật khẩu đều `admin123`), đồng thời seed:
 
 - Một số dịch vụ mẫu (Khám tổng quát, Cạo vôi, Tẩy trắng).
 - Ca làm việc: **Ca sáng**, **Ca chiều**.
@@ -95,7 +95,7 @@ npm install
 npm run dev
 ```
 
-Trang web chạy tại `http://localhost:5173`. Cấu hình API: trong `frontend` dùng `VITE_API_BASE_URL` (mặc định `http://localhost:4000/api`).
+Trang web chạy tại `http://localhost:5183`. Cấu hình API: trong `frontend` dùng `VITE_API_BASE_URL` (mặc định `http://localhost:4100/api`).
 
 ### Build production (Frontend)
 
@@ -152,7 +152,7 @@ Menu admin có thêm nút **Trang chủ** (về `/`) phía trên khối user ở
 
 ## 6. 🔌 API (Backend)
 
-- **Base URL:** `http://localhost:4000/api`
+- **Base URL:** `http://localhost:4100/api`
 
 ### Public (không bắt buộc đăng nhập)
 

@@ -1,10 +1,7 @@
-import { useNavigate } from 'react-router-dom';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
 function MaintenancePage() {
-  const navigate = useNavigate();
-
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar minimal />

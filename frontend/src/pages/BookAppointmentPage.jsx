@@ -1,10 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PublicApi, getAuthToken, getAuthUser, authHeaders } from '../services/api';
+import { PublicApi, getAuthToken, getAuthUser, authHeaders, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
-
-const FILE_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'http://localhost:4000';
 
 function formatLocalDate(date) {
   const d = new Date(date);

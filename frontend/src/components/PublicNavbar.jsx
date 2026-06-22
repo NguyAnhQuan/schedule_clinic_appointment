@@ -2,36 +2,34 @@ import { useState, useEffect } from 'react';
 import { AdminApi, getAuthToken, getAuthUser, setAuthUser, setAuthToken, FILE_BASE } from '../services/api';
 
 function PublicNavbar({ minimal = false }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => (getAuthToken() ? getAuthUser() : null));
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileForm, setProfileForm] = useState({ full_name: '', phone: '', email: '', avatar_url: '' });
-
   const isLoggedIn = !!getAuthToken();
+  const displayUser = isLoggedIn ? user : null;
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      setUser(null);
-      return;
-    }
-    const cached = getAuthUser();
-    if (cached) {
-      setUser(cached);
-      return;
-    }
+    if (!isLoggedIn || user) return;
+    let cancelled = false;
     AdminApi.getMe()
       .then((u) => {
+        if (cancelled) return;
         setAuthUser(u);
         setUser(u);
       })
       .catch(() => {
+        if (cancelled) return;
         setAuthToken(null);
         setAuthUser(null);
         setUser(null);
       });
-  }, [isLoggedIn]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, user]);
 
   function openProfileModal() {
     setShowProfileModal(true);
@@ -94,7 +92,7 @@ function PublicNavbar({ minimal = false }) {
     setShowProfileModal(false);
   }
 
-  const avatarUrl = profileForm.avatar_url || user?.avatar_url;
+  const avatarUrl = profileForm.avatar_url || displayUser?.avatar_url;
   const displayAvatar = avatarUrl
     ? avatarUrl.startsWith('http')
       ? avatarUrl
@@ -135,7 +133,7 @@ function PublicNavbar({ minimal = false }) {
           )}
 
           <div className="flex items-center gap-2">
-            {isLoggedIn && user ? (
+            {displayUser ? (
               <button
                 type="button"
                 onClick={openProfileModal}
@@ -146,12 +144,12 @@ function PublicNavbar({ minimal = false }) {
                     <img src={displayAvatar} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-slate-500 text-sm font-semibold">
-                      {(user.full_name || 'U').charAt(0).toUpperCase()}
+                      {(displayUser.full_name || 'U').charAt(0).toUpperCase()}
                     </span>
                   )}
                 </span>
                 <span className="text-sm font-medium text-slate-700 max-w-[120px] truncate">
-                  {user.full_name || 'Tài khoản'}
+                  {displayUser.full_name || 'Tài khoản'}
                 </span>
               </button>
             ) : (
@@ -206,7 +204,7 @@ function PublicNavbar({ minimal = false }) {
                         />
                       ) : (
                         <span className="text-2xl font-semibold text-slate-400">
-                          {(profileForm.full_name || user?.full_name || 'U').charAt(0).toUpperCase()}
+                          {(profileForm.full_name || displayUser?.full_name || 'U').charAt(0).toUpperCase()}
                         </span>
                       )}
                     </div>
@@ -284,7 +282,7 @@ function PublicNavbar({ minimal = false }) {
                   </div>
 
                   <div className="pt-2 border-t border-slate-100">
-                    {(user?.role === 'admin' || user?.role === 'staff' || user?.role === 'dentist') && (
+                    {(displayUser?.role === 'admin' || displayUser?.role === 'staff' || displayUser?.role === 'dentist') && (
                       <a
                         href="/admin"
                         className="text-xs text-primary hover:underline"

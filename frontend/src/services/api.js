@@ -1,5 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4100/api';
 export const FILE_BASE = API_BASE.replace(/\/api$/, '');
+
+export function resolveMediaUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  return `${FILE_BASE}${url.startsWith('/') ? url : `/${url}`}`;
+}
 
 export async function apiRequest(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {

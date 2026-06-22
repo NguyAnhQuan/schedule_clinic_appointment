@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminApi, getAuthToken } from '../../services/api';
+import { AdminApi, getAuthToken, resolveMediaUrl } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
 function AdminPatientsPage() {
@@ -230,7 +230,7 @@ function AdminPatientsPage() {
                           <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold border border-slate-200 overflow-hidden">
                             {p.avatar_url ? (
                               <img
-                                src={p.avatar_url}
+                                src={resolveMediaUrl(p.avatar_url)}
                                 alt={p.full_name}
                                 className="w-full h-full object-cover"
                               />
@@ -332,7 +332,7 @@ function AdminPatientsPage() {
                   <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-300 overflow-hidden flex items-center justify-center text-slate-500 text-sm font-bold">
                     {createForm.avatar_url ? (
                       <img
-                        src={createForm.avatar_url}
+                        src={resolveMediaUrl(createForm.avatar_url)}
                         alt={createForm.full_name}
                         className="w-full h-full object-cover"
                       />
@@ -470,7 +470,7 @@ function AdminPatientsPage() {
                   <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-300 overflow-hidden flex items-center justify-center text-slate-500 text-sm font-bold">
                     {editForm.avatar_url ? (
                       <img
-                        src={editForm.avatar_url}
+                        src={resolveMediaUrl(editForm.avatar_url)}
                         alt={editForm.full_name}
                         className="w-full h-full object-cover"
                       />
@@ -608,7 +608,6 @@ function AdminPatientsPage() {
                       setDeleteId(null);
                       load({ q });
                     } catch (err) {
-                      // eslint-disable-next-line no-alert
                       alert(err.message || 'Xoá bệnh nhân thất bại');
                     }
                   }}

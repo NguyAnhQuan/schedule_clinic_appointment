@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminApi, getAuthToken } from '../../services/api';
+import { AdminApi, getAuthToken, FILE_BASE } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
 function AdminServicesConfigPage() {
@@ -37,28 +37,9 @@ function AdminServicesConfigPage() {
       .catch(() => setDentists([]));
   }, [navigate]);
 
-  function handleChange(id, field, value) {
-    setItems((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
-  }
-
-  async function handleSave(service) {
-    setSavingId(service.id);
-    setError('');
-    try {
-      await AdminApi.updateService(service.id, {
-        name: service.name,
-        description: service.description,
-        price: service.price,
-        duration_minutes: service.duration_minutes,
-        is_active: service.is_active,
-        thumbnail_url: service.thumbnail_url || null,
-        dentist_ids: service.dentist_ids || [],
-      });
-    } catch (err) {
-      setError(err.message || 'Lưu dịch vụ thất bại');
-    } finally {
-      setSavingId(null);
-    }
+  function mediaUrl(url) {
+    if (!url) return '';
+    return url.startsWith('http') ? url : `${FILE_BASE}${url.startsWith('/') ? url : `/${url}`}`;
   }
 
   async function handleCreate(e) {
@@ -177,7 +158,7 @@ function AdminServicesConfigPage() {
                         <div className="w-12 h-12 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {s.thumbnail_url ? (
                             <img
-                              src={s.thumbnail_url}
+                              src={mediaUrl(s.thumbnail_url)}
                               alt={s.name}
                               className="w-full h-full object-cover"
                             />
@@ -302,7 +283,7 @@ function AdminServicesConfigPage() {
                 <div className="w-16 h-16 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden">
                   {editService.thumbnail_url ? (
                     <img
-                      src={editService.thumbnail_url}
+                      src={mediaUrl(editService.thumbnail_url)}
                       alt={editService.name}
                       className="w-full h-full object-cover"
                     />
@@ -477,7 +458,7 @@ function AdminServicesConfigPage() {
                 <div className="w-16 h-16 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden">
                   {newService.thumbnail_url ? (
                     <img
-                      src={newService.thumbnail_url}
+                      src={mediaUrl(newService.thumbnail_url)}
                       alt={newService.name}
                       className="w-full h-full object-cover"
                     />
@@ -666,7 +647,6 @@ function AdminServicesConfigPage() {
                         setError(err.message || 'Không tải được danh sách dịch vụ')
                       );
                   } catch (err) {
-                    // eslint-disable-next-line no-alert
                     alert(err.message || 'Xoá dịch vụ thất bại');
                   }
                 }}

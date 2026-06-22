@@ -416,19 +416,19 @@ async function initDatabase() {
       );
       if (dentistUsers.length > 0) {
         await connection.query(
-          `INSERT INTO dentists (user_id, specialty, experience_year, description, is_active)
-           VALUES (?, 'Nha khoa tổng quát', 5, 'Bác sĩ nha khoa với kinh nghiệm 5 năm.', 1)`,
+          `INSERT INTO dentists (user_id, avatar_url, specialty, experience_year, description, is_active)
+           VALUES (?, '/uploads/avatars/dentist-1.svg', 'Nha khoa tổng quát', 5, 'Bác sĩ nha khoa với kinh nghiệm 5 năm.', 1)`,
           [dentistUsers[0].id]
         );
       }
 
       // Seed services
       await connection.query(
-        `INSERT INTO services (name, description, price, duration_minutes, is_active)
+        `INSERT INTO services (name, description, price, duration_minutes, is_active, thumbnail_url)
          VALUES
-         ('Khám tổng quát', 'Khám và tư vấn sức khoẻ răng miệng tổng quát.', 200000, 30, 1),
-         ('Cạo vôi và đánh bóng', 'Làm sạch vôi răng và đánh bóng bề mặt răng.', 400000, 45, 1),
-         ('Tẩy trắng răng', 'Dịch vụ tẩy trắng răng an toàn.', 1500000, 60, 1)`
+         ('Khám tổng quát', 'Khám và tư vấn sức khoẻ răng miệng tổng quát.', 200000, 30, 1, '/uploads/services/service-general.svg'),
+         ('Cạo vôi và đánh bóng', 'Làm sạch vôi răng và đánh bóng bề mặt răng.', 400000, 45, 1, '/uploads/services/service-cleaning.svg'),
+         ('Tẩy trắng răng', 'Dịch vụ tẩy trắng răng an toàn.', 1500000, 60, 1, '/uploads/services/service-whitening.svg')`
       );
 
       // Gắn bác sĩ đầu tiên với tất cả dịch vụ (để flow đặt lịch theo ca hoạt động)
@@ -470,8 +470,8 @@ async function initDatabase() {
 
       // Seed clinic settings
       await connection.query(
-        `INSERT INTO clinic_settings (clinic_name, address, phone, email, working_hours)
-         VALUES ('Nha khoa Demo', '123 Đường ABC, Quận 1, TP.HCM', '02812345678', 'contact@nhakhoademo.vn', 'Thứ 2 - Thứ 7: 8h00 - 20h00')`
+        `INSERT INTO clinic_settings (clinic_name, address, phone, email, working_hours, logo_url)
+         VALUES ('Nha khoa Demo', '123 Đường ABC, Quận 1, TP.HCM', '02812345678', 'contact@nhakhoademo.vn', 'Thứ 2 - Thứ 7: 8h00 - 20h00', '/uploads/clinic/logo.svg')`
       );
     }
 
@@ -507,6 +507,28 @@ async function initDatabase() {
         }
       }
     }
+
+    // Bổ sung ảnh mẫu cho dữ liệu đã seed (hoặc DB cũ chưa có ảnh)
+    await connection.query(
+      `UPDATE services SET thumbnail_url = '/uploads/services/service-general.svg'
+       WHERE name = 'Khám tổng quát' AND (thumbnail_url IS NULL OR thumbnail_url = '')`
+    );
+    await connection.query(
+      `UPDATE services SET thumbnail_url = '/uploads/services/service-cleaning.svg'
+       WHERE name = 'Cạo vôi và đánh bóng' AND (thumbnail_url IS NULL OR thumbnail_url = '')`
+    );
+    await connection.query(
+      `UPDATE services SET thumbnail_url = '/uploads/services/service-whitening.svg'
+       WHERE name = 'Tẩy trắng răng' AND (thumbnail_url IS NULL OR thumbnail_url = '')`
+    );
+    await connection.query(
+      `UPDATE dentists SET avatar_url = '/uploads/avatars/dentist-1.svg'
+       WHERE avatar_url IS NULL OR avatar_url = ''`
+    );
+    await connection.query(
+      `UPDATE clinic_settings SET logo_url = '/uploads/clinic/logo.svg'
+       WHERE logo_url IS NULL OR logo_url = ''`
+    );
 
     console.log('Database initialized and seeded');
   } finally {
