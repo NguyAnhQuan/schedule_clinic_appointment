@@ -103,10 +103,12 @@ function PublicNavbar({ minimal = false }) {
     <>
       <header className="bg-white shadow-sm sticky top-0 z-30">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 hover:opacity-90">
-            <span className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-              NK
-            </span>
+          <a href="/" className="flex items-center gap-2.5 hover:opacity-90">
+            <img
+              src="/logo.svg"
+              alt="Nha Khoa Dental Clinic"
+              className="h-10 w-10 rounded-xl object-cover shadow-sm"
+            />
             <div className="leading-tight">
               <div className="text-xs font-semibold tracking-[0.18em] text-primary">
                 NHA KHOA

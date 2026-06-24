@@ -3,9 +3,7 @@ function PublicFooter() {
     <footer className="mt-10 border-t border-slate-200 bg-white">
       <div className="mx-auto max-w-6xl px-4 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-500">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-            NK
-          </span>
+          <img src="/logo.svg" alt="Nha Khoa" className="h-8 w-8 rounded-lg object-cover" />
           <div>
             <div className="font-semibold text-text-main text-xs">NHA KHOA</div>
             <div className="text-[11px] text-slate-500">

@@ -46,10 +46,10 @@ function AdminLayout({ active, title, children }) {
       <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col h-screen">
         {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <div className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight">
-            <span className="material-icons">local_hospital</span>
-            <span>DentalCare+</span>
-          </div>
+          <a href="/" className="flex items-center gap-2.5 text-primary font-bold text-lg tracking-tight">
+            <img src="/logo.svg" alt="Nha Khoa" className="h-9 w-9 rounded-lg object-cover" />
+            <span>Nha Khoa</span>
+          </a>
         </div>
 
         {/* Navigation */}

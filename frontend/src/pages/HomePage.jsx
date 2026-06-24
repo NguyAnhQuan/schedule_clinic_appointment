@@ -71,7 +71,7 @@ function HomePage() {
                 <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-white p-2">
                   <div className="aspect-[4/3] relative rounded-xl overflow-hidden bg-slate-100">
                     <img
-                      src="/images/hero-dental.svg"
+                      src="/images/hero-dental.jpg"
                       alt="Bác sĩ nha khoa trong phòng khám hiện đại"
                       className="w-full h-full object-cover"
                     />

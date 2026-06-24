@@ -93,15 +93,13 @@ function AdminLoginPage() {
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
-            backgroundImage: "url('/images/login-bg.svg')",
+            backgroundImage: "url('/images/login-bg.jpg')",
           }}
         />
         <div className="relative z-20 flex flex-col justify-between p-10 text-white w-full">
           <div className="flex items-center gap-3">
-            <div className="bg-white/20 backdrop-blur-md p-2 rounded-lg">
-              <span className="text-2xl">🦷</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Nha khoa Demo</h1>
+            <img src="/logo.svg" alt="Nha Khoa" className="h-11 w-11 rounded-xl object-cover shadow-md" />
+            <h1 className="text-2xl font-bold tracking-tight">Nha Khoa</h1>
           </div>
           <div className="max-w-md">
             <h2 className="text-4xl font-extrabold leading-tight mb-4">
@@ -116,17 +114,17 @@ function AdminLoginPage() {
             <div className="flex -space-x-3">
               <img
                 className="h-9 w-9 rounded-full border-2 border-primary object-cover"
-                src="/images/team-1.svg"
+                src="/images/team-1.jpg"
                 alt="Bác sĩ 1"
               />
               <img
                 className="h-9 w-9 rounded-full border-2 border-primary object-cover"
-                src="/images/team-2.svg"
+                src="/images/team-2.jpg"
                 alt="Bác sĩ 2"
               />
               <img
                 className="h-9 w-9 rounded-full border-2 border-primary object-cover"
-                src="/images/team-3.svg"
+                src="/images/team-3.jpg"
                 alt="Điều dưỡng"
               />
             </div>
