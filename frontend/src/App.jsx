@@ -23,7 +23,6 @@ import NotFoundPage from './pages/NotFoundPage';
 import ForbiddenPage from './pages/ForbiddenPage';
 import MaintenancePage from './pages/MaintenancePage';
 import AdminRouteGuard from './components/admin/AdminRouteGuard';
-import XenoChatbotEmbed from './components/XenoChatbotEmbed';
 import PageTitle from './components/PageTitle';
 import { getAuthUser } from './services/api';
 
@@ -45,7 +44,6 @@ function App() {
   return (
     <BrowserRouter>
       <PageTitle />
-      <XenoChatbotEmbed />
       <Routes>
         <Route
           path="/"
