@@ -4,6 +4,7 @@ const { optionalAuthMiddleware } = require('../middlewares/auth');
 const {
   getServices,
   getDentists,
+  getDentistsByDepartment,
   getDentistById,
   getAvailableDates,
   getShiftsForDate,
@@ -16,6 +17,7 @@ const {
 } = require('../controllers/public.controller');
 
 router.get('/services', getServices);
+router.get('/dentists/by-department', getDentistsByDepartment);
 router.get('/dentists/:id', getDentistById);
 router.get('/dentists', getDentists);
 router.get('/available-dates', getAvailableDates);

@@ -16,6 +16,7 @@ import AdminPatientRecordDetailPage from './pages/admin/AdminPatientRecordDetail
 import AdminServicesConfigPage from './pages/admin/AdminServicesConfigPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminStaffSchedulesPage from './pages/admin/AdminStaffSchedulesPage';
+import AdminShiftsPage from './pages/admin/AdminShiftsPage';
 import AdminCalendarPage from './pages/admin/AdminCalendarPage';
 import AdminProfilePage from './pages/admin/AdminProfilePage';
 import TermsPage from './pages/TermsPage';
@@ -162,6 +163,14 @@ function App() {
           element={(
             <AdminRouteGuard allowedRoles={['admin']}>
               <AdminServicesConfigPage />
+            </AdminRouteGuard>
+          )}
+        />
+        <Route
+          path="/admin/shifts"
+          element={(
+            <AdminRouteGuard allowedRoles={['admin']}>
+              <AdminShiftsPage />
             </AdminRouteGuard>
           )}
         />

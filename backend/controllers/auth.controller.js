@@ -1,6 +1,16 @@
 const bcrypt = require('bcrypt');
 const { pool } = require('../config/db');
 const { generateToken } = require('../middlewares/auth');
+const { getSecuritySettings } = require('../utils/clinicSettings');
+const { validatePassword } = require('../utils/password');
+
+function tokenExpiresIn(security) {
+  const minutes = Number(security?.auto_logout_minutes);
+  if (minutes > 0 && minutes <= 24 * 60) {
+    return `${minutes}m`;
+  }
+  return '8h';
+}
 
 async function register(req, res) {
   const { full_name, phone, email, password } = req.body || {};
@@ -11,8 +21,11 @@ async function register(req, res) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
     return res.status(400).json({ message: 'Email không hợp lệ' });
   }
-  if (String(password).length < 6) {
-    return res.status(400).json({ message: 'Mật khẩu cần ít nhất 6 ký tự' });
+
+  const security = await getSecuritySettings();
+  const pwdCheck = await validatePassword(password, security);
+  if (!pwdCheck.ok) {
+    return res.status(400).json({ message: pwdCheck.message });
   }
 
   try {
@@ -25,8 +38,8 @@ async function register(req, res) {
 
     const passwordHash = await bcrypt.hash(String(password), 10);
     const [result] = await pool.query(
-      `INSERT INTO users (full_name, phone, email, password_hash, role, status)
-       VALUES (?, ?, ?, ?, 'customer', 'active')`,
+      `INSERT INTO users (full_name, phone, email, password_hash, role, status, password_updated_at)
+       VALUES (?, ?, ?, ?, 'customer', 'active', NOW())`,
       [String(full_name).trim(), phone ? String(phone).trim() : null, trimmedEmail, passwordHash]
     );
     const [rows] = await pool.query(
@@ -34,7 +47,7 @@ async function register(req, res) {
       [result.insertId]
     );
     const user = rows[0];
-    const token = generateToken(user);
+    const token = generateToken(user, tokenExpiresIn(security));
     return res.status(201).json({
       message: 'Đăng ký thành công',
       token,
@@ -59,11 +72,10 @@ async function login(req, res) {
     return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu' });
   }
 
+  const trimmedEmail = String(email).trim().toLowerCase();
+
   try {
-    const [rows] = await pool.query(
-      'SELECT * FROM users WHERE email = ? LIMIT 1',
-      [email]
-    );
+    const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [trimmedEmail]);
     if (!rows.length) {
       return res.status(401).json({ message: 'Email hoặc mật khẩu không đúng' });
     }
@@ -78,7 +90,20 @@ async function login(req, res) {
       return res.status(403).json({ message: 'Tài khoản đã bị khoá hoặc không hoạt động' });
     }
 
-    const token = generateToken(user);
+    const security = await getSecuritySettings();
+    const expDays = Number(security?.password_expiration_days);
+    if (expDays > 0 && user.password_updated_at) {
+      const updatedAt = new Date(user.password_updated_at);
+      const expiredAt = new Date(updatedAt.getTime() + expDays * 24 * 60 * 60 * 1000);
+      if (new Date() > expiredAt && ['admin', 'staff', 'dentist'].includes(user.role)) {
+        return res.status(403).json({
+          message: 'Mật khẩu đã hết hạn. Vui lòng liên hệ quản trị viên để đặt lại mật khẩu.',
+          code: 'PASSWORD_EXPIRED',
+        });
+      }
+    }
+
+    const token = generateToken(user, tokenExpiresIn(security));
     return res.json({
       token,
       user: {
@@ -116,6 +141,20 @@ async function updateProfile(req, res) {
   const { full_name, phone, email, avatar_url } = req.body || {};
   const userId = req.user.id;
   try {
+    if (email !== undefined) {
+      const trimmedEmail = String(email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        return res.status(400).json({ message: 'Email không hợp lệ' });
+      }
+      const [dup] = await pool.query('SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1', [
+        trimmedEmail,
+        userId,
+      ]);
+      if (dup.length) {
+        return res.status(400).json({ message: 'Email này đã được sử dụng' });
+      }
+    }
+
     const updates = [];
     const params = [];
     if (full_name !== undefined) {
@@ -138,10 +177,7 @@ async function updateProfile(req, res) {
       return res.status(400).json({ message: 'Không có trường nào để cập nhật' });
     }
     params.push(userId);
-    await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-      params
-    );
+    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
     const [rows] = await pool.query(
       'SELECT id, full_name, phone, email, role, avatar_url FROM users WHERE id = ?',
       [userId]
@@ -149,12 +185,14 @@ async function updateProfile(req, res) {
     res.json(rows[0]);
   } catch (err) {
     console.error('updateProfile error', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Email này đã được sử dụng' });
+    }
     res.status(500).json({ message: 'Lỗi hệ thống' });
   }
 }
 
 async function getMyAppointments(req, res) {
-  const { pool } = require('../config/db');
   const userId = req.user.id;
   try {
     const [userRow] = await pool.query(
@@ -207,4 +245,3 @@ module.exports = {
   updateProfile,
   getMyAppointments,
 };
-

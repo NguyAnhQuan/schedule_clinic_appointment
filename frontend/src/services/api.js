@@ -7,6 +7,19 @@ export function resolveMediaUrl(url) {
   return `${FILE_BASE}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
+export function toRelativeMediaPath(url) {
+  if (!url) return '';
+  if (url.startsWith('http')) {
+    try {
+      const parsed = new URL(url);
+      return parsed.pathname;
+    } catch {
+      return url.replace(FILE_BASE, '');
+    }
+  }
+  return url.startsWith('/') ? url : `/${url}`;
+}
+
 export async function apiRequest(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -114,8 +127,12 @@ export function authHeaders() {
 
 // Public APIs
 export const PublicApi = {
-  getServices() {
-    return apiRequest('/services');
+  getServices(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/services${query ? `?${query}` : ''}`);
+  },
+  getDentistsByDepartment() {
+    return apiRequest('/dentists/by-department');
   },
   getDentists(params = {}) {
     const query = new URLSearchParams(params).toString();
@@ -290,8 +307,32 @@ export const AdminApi = {
     });
   },
 
-  getUsers() {
-    return apiRequest('/admin/users', { headers: authHeaders() });
+  createMedicalRecord(patientId, payload) {
+    return apiRequest(`/admin/patients/${patientId}/records`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateMedicalRecord(id, payload) {
+    return apiRequest(`/admin/medical-records/${id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteMedicalRecord(id) {
+    return apiRequest(`/admin/medical-records/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+  },
+
+  getUsers(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/users${query ? `?${query}` : ''}`, { headers: authHeaders() });
   },
 
   createUser(payload) {
@@ -317,8 +358,9 @@ export const AdminApi = {
     });
   },
 
-  getDentists() {
-    return apiRequest('/admin/dentists', { headers: authHeaders() });
+  getDentists(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/dentists${query ? `?${query}` : ''}`, { headers: authHeaders() });
   },
 
   createDentist(payload) {
@@ -344,8 +386,9 @@ export const AdminApi = {
     });
   },
 
-  getServicesConfig() {
-    return apiRequest('/admin/services', {
+  getServicesConfig(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return apiRequest(`/admin/services${query ? `?${query}` : ''}`, {
       headers: authHeaders(),
     });
   },

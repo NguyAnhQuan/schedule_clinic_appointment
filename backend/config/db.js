@@ -135,6 +135,180 @@ async function ensureDentist(connection, userId, dentist) {
   return result.insertId;
 }
 
+async function linkServicesByDepartments(connection, serviceIds, dentistsBySpecialty) {
+  const general = dentistsBySpecialty['Nha khoa tổng quát'] || [];
+  const ortho = dentistsBySpecialty['Chỉnh nha'] || [];
+  const aesthetic = dentistsBySpecialty['Thẩm mỹ nha khoa'] || [];
+  const surgery = dentistsBySpecialty['Phẫu thuật hàm mặt'] || [];
+
+  const [generalExam, cleaning, whitening, filling, wisdom, implant] = serviceIds;
+  await linkServiceDentists(connection, generalExam, [...general, ...surgery, ...ortho]);
+  await linkServiceDentists(connection, cleaning, general);
+  await linkServiceDentists(connection, whitening, aesthetic);
+  await linkServiceDentists(connection, filling, general);
+  await linkServiceDentists(connection, wisdom, [...surgery, ...general]);
+  await linkServiceDentists(connection, implant, [...surgery, ...general]);
+}
+
+const DENTIST_DEPARTMENTS = [
+  {
+    specialty: 'Nha khoa tổng quát',
+    doctors: [
+      {
+        email: 'dentist1@clinic.local',
+        full_name: 'Bs. Nguyễn Văn An',
+        phone: '0900000001',
+        experience_year: 8,
+        description:
+          'Bác sĩ Nguyễn Văn An có hơn 8 năm kinh nghiệm khám và điều trị răng miệng tổng quát, tư vấn phác đồ điều trị cá nhân hóa.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+      {
+        email: 'dentist4@clinic.local',
+        full_name: 'Bs. Phạm Thị Lan',
+        phone: '0900000014',
+        experience_year: 5,
+        description:
+          'Bác sĩ Phạm Thị Lan chuyên khám tổng quát và chăm sóc răng miệng định kỳ cho cả gia đình.',
+        avatar_url: '/uploads/avatars/dentist-2.jpg',
+      },
+      {
+        email: 'dentist5@clinic.local',
+        full_name: 'Bs. Hoàng Văn Đức',
+        phone: '0900000015',
+        experience_year: 7,
+        description:
+          'Bác sĩ Hoàng Văn Đức có kinh nghiệm điều trị sâu răng, viêm nướu và tư vấn phòng ngừa.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+    ],
+  },
+  {
+    specialty: 'Chỉnh nha',
+    doctors: [
+      {
+        email: 'dentist2@clinic.local',
+        full_name: 'Bs. Trần Thị Cường',
+        phone: '0900000011',
+        experience_year: 6,
+        description:
+          'Bác sĩ Trần Thị Cường chuyên chỉnh nha mắc cài và khay trong suốt, theo dõi tiến trình điều trị sát sao.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+      {
+        email: 'dentist6@clinic.local',
+        full_name: 'Bs. Nguyễn Thị Hương',
+        phone: '0900000016',
+        experience_year: 9,
+        description:
+          'Bác sĩ Nguyễn Thị Hương tư vấn chỉnh nha cho trẻ em và người lớn, ưu tiên thẩm mỹ và chức năng.',
+        avatar_url: '/uploads/avatars/dentist-2.jpg',
+      },
+      {
+        email: 'dentist7@clinic.local',
+        full_name: 'Bs. Lê Quốc Bảo',
+        phone: '0900000017',
+        experience_year: 4,
+        description:
+          'Bác sĩ Lê Quốc Bảo hỗ trợ điều trị chỉnh nha và theo dõi tái khám định kỳ cho bệnh nhân.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+    ],
+  },
+  {
+    specialty: 'Thẩm mỹ nha khoa',
+    doctors: [
+      {
+        email: 'dentist3@clinic.local',
+        full_name: 'Bs. Lê Minh Khoa',
+        phone: '0900000012',
+        experience_year: 10,
+        description:
+          'Bác sĩ Lê Minh Khoa tập trung tẩy trắng, dán sứ veneer và phục hồi thẩm mỹ nụ cười.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+      {
+        email: 'dentist8@clinic.local',
+        full_name: 'Bs. Trần Mai Phương',
+        phone: '0900000018',
+        experience_year: 8,
+        description:
+          'Bác sĩ Trần Mai Phương chuyên thiết kế nụ cười và điều chỉnh màu sắc răng tự nhiên.',
+        avatar_url: '/uploads/avatars/dentist-2.jpg',
+      },
+      {
+        email: 'dentist9@clinic.local',
+        full_name: 'Bs. Võ Anh Tuấn',
+        phone: '0900000019',
+        experience_year: 6,
+        description:
+          'Bác sĩ Võ Anh Tuấn có kinh nghiệm tẩy trắng răng và phục hình thẩm mỹ an toàn.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+    ],
+  },
+  {
+    specialty: 'Phẫu thuật hàm mặt',
+    doctors: [
+      {
+        email: 'dentist10@clinic.local',
+        full_name: 'Bs. Đặng Minh Khang',
+        phone: '0900000020',
+        experience_year: 12,
+        description:
+          'Bác sĩ Đặng Minh Khang chuyên nhổ răng khôn, tiểu phẫu và cấy implant.',
+        avatar_url: '/uploads/avatars/dentist-2.jpg',
+      },
+      {
+        email: 'dentist11@clinic.local',
+        full_name: 'Bs. Bùi Thị Ngọc',
+        phone: '0900000021',
+        experience_year: 9,
+        description:
+          'Bác sĩ Bùi Thị Ngọc có kinh nghiệm phẫu thuật hàm mặt và điều trị răng khôn phức tạp.',
+        avatar_url: '/uploads/avatars/dentist-1.jpg',
+      },
+      {
+        email: 'dentist12@clinic.local',
+        full_name: 'Bs. Phan Văn Hùng',
+        phone: '0900000022',
+        experience_year: 11,
+        description:
+          'Bác sĩ Phan Văn Hùng tư vấn và thực hiện các thủ thuật phẫu thuật trong miệng an toàn.',
+        avatar_url: '/uploads/avatars/dentist-2.jpg',
+      },
+    ],
+  },
+];
+
+async function ensureDepartmentDentists(connection, passwordHash) {
+  const dentistIds = [];
+  const dentistsBySpecialty = {};
+
+  for (const dept of DENTIST_DEPARTMENTS) {
+    dentistsBySpecialty[dept.specialty] = [];
+    for (const doc of dept.doctors) {
+      const userId = await ensureUser(connection, passwordHash, {
+        full_name: doc.full_name,
+        phone: doc.phone,
+        email: doc.email,
+        role: 'dentist',
+        avatar_url: doc.avatar_url,
+      });
+      const dentistId = await ensureDentist(connection, userId, {
+        specialty: dept.specialty,
+        experience_year: doc.experience_year,
+        description: doc.description,
+        avatar_url: doc.avatar_url,
+      });
+      dentistIds.push(dentistId);
+      dentistsBySpecialty[dept.specialty].push(dentistId);
+    }
+  }
+
+  return { dentistIds, dentistsBySpecialty };
+}
+
 async function linkServiceDentists(connection, serviceId, dentistIds) {
   for (const dentistId of dentistIds) {
     await connection.query('INSERT IGNORE INTO service_dentists (service_id, dentist_id) VALUES (?, ?)', [
@@ -184,27 +358,6 @@ async function enrichDemoData(connection) {
       email: 'admin@clinic.local',
       role: 'admin',
     }),
-    dentist1: await ensureUser(connection, passwordHash, {
-      full_name: 'Bs. Nguyễn Văn An',
-      phone: '0900000001',
-      email: 'dentist1@clinic.local',
-      role: 'dentist',
-      avatar_url: '/uploads/avatars/dentist-1.jpg',
-    }),
-    dentist2: await ensureUser(connection, passwordHash, {
-      full_name: 'Bs. Trần Thị Cường',
-      phone: '0900000011',
-      email: 'dentist2@clinic.local',
-      role: 'dentist',
-      avatar_url: '/uploads/avatars/dentist-1.jpg',
-    }),
-    dentist3: await ensureUser(connection, passwordHash, {
-      full_name: 'Bs. Lê Minh Khoa',
-      phone: '0900000012',
-      email: 'dentist3@clinic.local',
-      role: 'dentist',
-      avatar_url: '/uploads/avatars/dentist-1.jpg',
-    }),
     staff1: await ensureUser(connection, passwordHash, {
       full_name: 'Lễ tân Ngọc Hân',
       phone: '0900000002',
@@ -231,29 +384,10 @@ async function enrichDemoData(connection) {
     }),
   };
 
-  const dentistIds = [
-    await ensureDentist(connection, userIds.dentist1, {
-      specialty: 'Nha khoa tổng quát',
-      experience_year: 8,
-      description:
-        'Bác sĩ Nguyễn Văn An có hơn 8 năm kinh nghiệm khám và điều trị răng miệng tổng quát, tư vấn phác đồ điều trị cá nhân hóa.',
-      avatar_url: '/uploads/avatars/dentist-1.jpg',
-    }),
-    await ensureDentist(connection, userIds.dentist2, {
-      specialty: 'Chỉnh nha',
-      experience_year: 6,
-      description:
-        'Bác sĩ Trần Thị Cường chuyên chỉnh nha mắc cài và khay trong suốt, theo dõi tiến trình điều trị sát sao.',
-      avatar_url: '/uploads/avatars/dentist-1.jpg',
-    }),
-    await ensureDentist(connection, userIds.dentist3, {
-      specialty: 'Thẩm mỹ nha khoa',
-      experience_year: 10,
-      description:
-        'Bác sĩ Lê Minh Khoa tập trung tẩy trắng, dán sứ veneer và phục hồi thẩm mỹ nụ cười.',
-      avatar_url: '/uploads/avatars/dentist-1.jpg',
-    }),
-  ];
+  const { dentistIds, dentistsBySpecialty } = await ensureDepartmentDentists(
+    connection,
+    passwordHash
+  );
 
   // --- Dịch vụ ---
   const serviceIds = [
@@ -301,9 +435,7 @@ async function enrichDemoData(connection) {
     }),
   ];
 
-  for (const serviceId of serviceIds) {
-    await linkServiceDentists(connection, serviceId, dentistIds);
-  }
+  await linkServicesByDepartments(connection, serviceIds, dentistsBySpecialty);
 
   // --- Bệnh nhân ---
   const patientSeeds = [
@@ -711,6 +843,18 @@ async function initDatabase() {
       await connection.query('ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)');
     }
 
+    const [passwordUpdatedCols] = await connection.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'password_updated_at'`,
+      [DB_NAME]
+    );
+    if (passwordUpdatedCols.length === 0) {
+      await connection.query(
+        'ALTER TABLE users ADD COLUMN password_updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP'
+      );
+      await connection.query('UPDATE users SET password_updated_at = created_at WHERE password_updated_at IS NULL');
+    }
+
     const [dentistAvatarCols] = await connection.query(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'dentists' AND COLUMN_NAME = 'avatar_url'`,
@@ -988,6 +1132,12 @@ async function initDatabase() {
       `UPDATE clinic_settings SET logo_url = '/uploads/clinic/logo.svg'
        WHERE logo_url IS NULL OR logo_url = '' OR logo_url LIKE '%.png'`
     );
+
+    const { expirePastAppointments } = require('../utils/expireAppointments');
+    const expired = await expirePastAppointments(connection);
+    if (expired > 0) {
+      console.log(`Đã cập nhật ${expired} lịch hẹn quá hạn thành không đến (no_show)`);
+    }
 
     console.log('Database initialized and seeded');
   } finally {

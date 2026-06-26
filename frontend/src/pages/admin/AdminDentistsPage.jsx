@@ -2,6 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, getAuthUser, FILE_BASE } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Pagination from '../../components/Pagination';
+import { DENTIST_SPECIALTIES } from '../../constants/dentistSpecialties';
+
+const PAGE_SIZE = 50;
 
 function AdminDentistsPage() {
   const navigate = useNavigate();
@@ -34,6 +38,8 @@ function AdminDentistsPage() {
   const editAvatarInputRef = useRef(null);
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -44,12 +50,19 @@ function AdminDentistsPage() {
     loadUsers();
   }, [navigate]);
 
-  async function load() {
+  async function load(params = {}) {
     setLoading(true);
     setError('');
     try {
-      const data = await AdminApi.getDentists();
-      setItems(Array.isArray(data) ? data : []);
+      const data = await AdminApi.getDentists({ page, limit: PAGE_SIZE, ...params });
+      if (Array.isArray(data)) {
+        setItems(data);
+        setPagination({ total: data.length, limit: PAGE_SIZE });
+      } else {
+        setItems(data.data || []);
+        setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
+        if (data.pagination?.page) setPage(data.pagination.page);
+      }
     } catch (err) {
       setError(err.message || 'Không tải được danh sách bác sĩ');
     } finally {
@@ -57,10 +70,15 @@ function AdminDentistsPage() {
     }
   }
 
+  function handlePageChange(nextPage) {
+    setPage(nextPage);
+    load({ page: nextPage });
+  }
+
   async function loadUsers() {
     try {
       const data = await AdminApi.getUsers();
-      setUsers(Array.isArray(data) ? data : []);
+      setUsers(Array.isArray(data) ? data : data.data || []);
     } catch {
       setUsers([]);
     }
@@ -71,6 +89,10 @@ function AdminDentistsPage() {
 
   async function handleCreate(e) {
     e.preventDefault();
+    if (!createForm.specialty) {
+      setError('Vui lòng chọn chuyên khoa');
+      return;
+    }
     if (!createForm.user_id) {
       setError('Vui lòng chọn tài khoản');
       return;
@@ -139,6 +161,10 @@ function AdminDentistsPage() {
   async function handleEditSubmit(e) {
     e.preventDefault();
     if (!editId) return;
+    if (!editForm.specialty || !DENTIST_SPECIALTIES.includes(editForm.specialty)) {
+      setError('Vui lòng chọn chuyên khoa từ danh sách');
+      return;
+    }
     setCreating(true);
     setError('');
     try {
@@ -180,8 +206,14 @@ function AdminDentistsPage() {
             <h1 className="text-lg font-semibold text-slate-900">Danh sách bác sĩ</h1>
             <p className="text-[11px] text-slate-500 mt-1">
               Quản lý thông tin chuyên môn bác sĩ (gắn với tài khoản hệ thống).
+              {!loading && pagination.total > 0 && (
+                <span className="ml-1 font-medium text-slate-700">
+                  — Tổng {pagination.total} bác sĩ
+                </span>
+              )}
             </p>
           </div>
+          {role === 'admin' && (
           <button
             type="button"
             onClick={() => setShowCreate(true)}
@@ -191,6 +223,7 @@ function AdminDentistsPage() {
             <span className="material-icons text-sm">person_add</span>
             <span>Thêm bác sĩ</span>
           </button>
+          )}
         </div>
 
         {error && (
@@ -280,6 +313,12 @@ function AdminDentistsPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            total={pagination.total}
+            limit={pagination.limit || PAGE_SIZE}
+            onPageChange={handlePageChange}
+          />
         </div>
 
         {/* Modal thêm bác sĩ */}
@@ -358,14 +397,21 @@ function AdminDentistsPage() {
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                  Chuyên khoa
+                  Chuyên khoa *
                 </label>
-                <input
+                <select
                   value={createForm.specialty}
                   onChange={(e) => setCreateForm((p) => ({ ...p, specialty: e.target.value }))}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="VD: Nha khoa tổng quát"
-                />
+                  required
+                >
+                  <option value="">-- Chọn chuyên khoa --</option>
+                  {DENTIST_SPECIALTIES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-700 mb-1">
@@ -479,13 +525,24 @@ function AdminDentistsPage() {
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-700 mb-1">
-                  Chuyên khoa
+                  Chuyên khoa *
                 </label>
-                <input
+                <select
                   value={editForm.specialty}
                   onChange={(e) => setEditForm((p) => ({ ...p, specialty: e.target.value }))}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
+                  required
+                >
+                  <option value="">-- Chọn chuyên khoa --</option>
+                  {!DENTIST_SPECIALTIES.includes(editForm.specialty) && editForm.specialty ? (
+                    <option value={editForm.specialty}>{editForm.specialty} (cần cập nhật)</option>
+                  ) : null}
+                  {DENTIST_SPECIALTIES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-700 mb-1">

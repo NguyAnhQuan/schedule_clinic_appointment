@@ -1,4 +1,44 @@
 const { pool } = require('../config/db');
+const { normalizePhone, normalizePhoneInput, phonesMatch } = require('../utils/phone');
+const { getSecuritySettings, invalidateClinicSettingsCache } = require('../utils/clinicSettings');
+const { validatePassword } = require('../utils/password');
+const { expirePastAppointments } = require('../utils/expireAppointments');
+const { isValidSpecialty } = require('../utils/dentistSpecialties');
+
+const APPOINTMENT_STATUS_TRANSITIONS = {
+  pending: ['confirmed', 'canceled', 'no_show'],
+  confirmed: ['checked_in', 'in_progress', 'canceled', 'no_show'],
+  checked_in: ['in_progress', 'completed', 'canceled', 'no_show'],
+  in_progress: ['completed', 'canceled'],
+  completed: [],
+  canceled: [],
+  no_show: [],
+};
+
+async function findPatientIdByPhone(connOrPool, phone) {
+  const db = connOrPool || pool;
+  const [rows] = await db.query('SELECT id, phone FROM patients');
+  const match = rows.find((row) => phonesMatch(row.phone, phone));
+  return match ? match.id : null;
+}
+
+async function ensureMedicalRecordForAppointment(appointmentId) {
+  const [exists] = await pool.query(
+    'SELECT id FROM medical_records WHERE appointment_id = ? LIMIT 1',
+    [appointmentId]
+  );
+  if (exists.length) return;
+  const [[appt]] = await pool.query(
+    'SELECT patient_id FROM appointments WHERE id = ? LIMIT 1',
+    [appointmentId]
+  );
+  if (!appt) return;
+  await pool.query(
+    `INSERT INTO medical_records (patient_id, appointment_id, diagnosis, treatment)
+     VALUES (?, ?, ?, ?)`,
+    [appt.patient_id, appointmentId, 'Chưa cập nhật chẩn đoán', 'Chưa cập nhật điều trị']
+  );
+}
 
 function formatDateKey(value) {
   if (!value) return null;
@@ -13,6 +53,7 @@ function formatDateKey(value) {
 
 async function getDashboard(req, res) {
   try {
+    await expirePastAppointments(pool);
     const [[patients]] = await pool.query('SELECT COUNT(*) AS total FROM patients');
     const [[appointments]] = await pool.query('SELECT COUNT(*) AS total FROM appointments');
     const [[todayAppointments]] = await pool.query(
@@ -249,6 +290,7 @@ async function listAppointments(req, res) {
   const offset = (Number(page) - 1) * Number(limit);
 
   try {
+    await expirePastAppointments(pool);
     let where = '1=1';
     const params = [];
     if (status) {
@@ -325,13 +367,26 @@ async function updateAppointmentStatus(req, res) {
   }
 
   try {
-    const [result] = await pool.query(
-      'UPDATE appointments SET status = ? WHERE id = ?',
-      [status, id]
-    );
+    const [[current]] = await pool.query('SELECT status FROM appointments WHERE id = ? LIMIT 1', [id]);
+    if (!current) {
+      return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
+    }
+    const nextAllowed = APPOINTMENT_STATUS_TRANSITIONS[current.status] || [];
+    if (current.status !== status && !nextAllowed.includes(status)) {
+      return res.status(400).json({
+        message: `Không thể chuyển từ "${current.status}" sang "${status}"`,
+      });
+    }
+
+    const [result] = await pool.query('UPDATE appointments SET status = ? WHERE id = ?', [status, id]);
     if (!result.affectedRows) {
       return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     }
+
+    if (status === 'completed') {
+      await ensureMedicalRecordForAppointment(id);
+    }
+
     res.json({ message: 'Cập nhật trạng thái thành công' });
   } catch (err) {
     console.error('updateAppointmentStatus error', err);
@@ -385,11 +440,20 @@ async function createPatient(req, res) {
   if (!full_name || !phone) {
     return res.status(400).json({ message: 'Thiếu tên hoặc số điện thoại' });
   }
+  const normalizedPhone = normalizePhoneInput(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({ message: 'Số điện thoại không hợp lệ' });
+  }
 
   try {
+    const existingId = await findPatientIdByPhone(pool, normalizedPhone);
+    if (existingId) {
+      return res.status(400).json({ message: 'Số điện thoại này đã được sử dụng cho bệnh nhân khác' });
+    }
+
     const [result] = await pool.query(
       'INSERT INTO patients (full_name, phone, email, note, avatar_url) VALUES (?, ?, ?, ?, ?)',
-      [full_name, phone, email || null, note || null, avatar_url || null]
+      [full_name, normalizedPhone, email || null, note || null, avatar_url || null]
     );
     const [rows] = await pool.query(
       'SELECT id, full_name, phone, email, note, avatar_url, created_at FROM patients WHERE id = ?',
@@ -425,12 +489,132 @@ async function getPatientRecords(req, res) {
       [id]
     );
 
+    const [appointmentsWithoutRecords] = await pool.query(
+      `SELECT a.id, a.appointment_time, a.status, s.name AS service_name
+       FROM appointments a
+       LEFT JOIN medical_records mr ON mr.appointment_id = a.id
+       LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.patient_id = ? AND mr.id IS NULL
+       ORDER BY a.appointment_time DESC`,
+      [id]
+    );
+
     res.json({
       patient,
       records,
+      appointments_without_records: appointmentsWithoutRecords,
     });
   } catch (err) {
     console.error('getPatientRecords error', err);
+    res.status(500).json({ message: 'Lỗi hệ thống' });
+  }
+}
+
+async function createMedicalRecord(req, res) {
+  const { id: patientId } = req.params;
+  const { appointment_id, diagnosis, treatment } = req.body || {};
+  if (!appointment_id) {
+    return res.status(400).json({ message: 'Thiếu mã lịch hẹn (appointment_id)' });
+  }
+
+  try {
+    const [[patient]] = await pool.query('SELECT id FROM patients WHERE id = ? LIMIT 1', [patientId]);
+    if (!patient) {
+      return res.status(404).json({ message: 'Không tìm thấy bệnh nhân' });
+    }
+    const [[appt]] = await pool.query(
+      'SELECT id, patient_id, status FROM appointments WHERE id = ? LIMIT 1',
+      [appointment_id]
+    );
+    if (!appt || Number(appt.patient_id) !== Number(patientId)) {
+      return res.status(400).json({ message: 'Lịch hẹn không thuộc bệnh nhân này' });
+    }
+    const [exists] = await pool.query(
+      'SELECT id FROM medical_records WHERE appointment_id = ? LIMIT 1',
+      [appointment_id]
+    );
+    if (exists.length) {
+      return res.status(400).json({ message: 'Lịch hẹn này đã có hồ sơ bệnh án' });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO medical_records (patient_id, appointment_id, diagnosis, treatment)
+       VALUES (?, ?, ?, ?)`,
+      [
+        patientId,
+        appointment_id,
+        diagnosis || 'Chưa cập nhật chẩn đoán',
+        treatment || 'Chưa cập nhật điều trị',
+      ]
+    );
+    const [rows] = await pool.query(
+      `SELECT mr.id, mr.diagnosis, mr.treatment, mr.created_at, mr.updated_at,
+              a.appointment_time, a.status, s.name AS service_name
+       FROM medical_records mr
+       JOIN appointments a ON mr.appointment_id = a.id
+       LEFT JOIN services s ON a.service_id = s.id
+       WHERE mr.id = ?`,
+      [result.insertId]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('createMedicalRecord error', err);
+    res.status(500).json({ message: 'Lỗi hệ thống' });
+  }
+}
+
+async function updateMedicalRecord(req, res) {
+  const { id } = req.params;
+  const { diagnosis, treatment } = req.body || {};
+  if (diagnosis === undefined && treatment === undefined) {
+    return res.status(400).json({ message: 'Không có trường nào để cập nhật' });
+  }
+
+  try {
+    const updates = [];
+    const params = [];
+    if (diagnosis !== undefined) {
+      updates.push('diagnosis = ?');
+      params.push(diagnosis);
+    }
+    if (treatment !== undefined) {
+      updates.push('treatment = ?');
+      params.push(treatment);
+    }
+    params.push(id);
+    const [result] = await pool.query(
+      `UPDATE medical_records SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: 'Không tìm thấy hồ sơ bệnh án' });
+    }
+    const [rows] = await pool.query(
+      `SELECT mr.id, mr.diagnosis, mr.treatment, mr.created_at, mr.updated_at,
+              a.appointment_time, a.status, s.name AS service_name
+       FROM medical_records mr
+       JOIN appointments a ON mr.appointment_id = a.id
+       LEFT JOIN services s ON a.service_id = s.id
+       WHERE mr.id = ?`,
+      [id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('updateMedicalRecord error', err);
+    res.status(500).json({ message: 'Lỗi hệ thống' });
+  }
+}
+
+async function deleteMedicalRecord(req, res) {
+  const { id } = req.params;
+  try {
+    const [result] = await pool.query('DELETE FROM medical_records WHERE id = ?', [id]);
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: 'Không tìm thấy hồ sơ bệnh án' });
+    }
+    res.json({ message: 'Xoá hồ sơ bệnh án thành công' });
+  } catch (err) {
+    console.error('deleteMedicalRecord error', err);
     res.status(500).json({ message: 'Lỗi hệ thống' });
   }
 }
@@ -441,13 +625,22 @@ async function updatePatient(req, res) {
   if (!full_name || !phone) {
     return res.status(400).json({ message: 'Thiếu tên hoặc số điện thoại' });
   }
+  const normalizedPhone = normalizePhoneInput(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({ message: 'Số điện thoại không hợp lệ' });
+  }
 
   try {
+    const existingId = await findPatientIdByPhone(pool, normalizedPhone);
+    if (existingId && Number(existingId) !== Number(id)) {
+      return res.status(400).json({ message: 'Số điện thoại này đã được sử dụng cho bệnh nhân khác' });
+    }
+
     const [result] = await pool.query(
       `UPDATE patients 
        SET full_name = ?, phone = ?, email = ?, note = ?, avatar_url = ?
        WHERE id = ?`,
-      [full_name, phone, email || null, note || null, avatar_url || null, id]
+      [full_name, normalizedPhone, email || null, note || null, avatar_url || null, id]
     );
     if (!result.affectedRows) {
       return res.status(404).json({ message: 'Không tìm thấy bệnh nhân' });
@@ -484,9 +677,39 @@ async function deletePatient(req, res) {
 }
 
 async function listUsers(req, res) {
+  const { page, limit = 20, q } = req.query;
   try {
+    let where = '1=1';
+    const params = [];
+    if (q) {
+      where += ' AND (full_name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like, like);
+    }
+
+    if (page) {
+      const pageNum = Math.max(1, Number(page));
+      const limitNum = Math.max(1, Math.min(100, Number(limit)));
+      const offset = (pageNum - 1) * limitNum;
+      const [rows] = await pool.query(
+        `SELECT id, full_name, phone, email, role, status, avatar_url, created_at
+         FROM users WHERE ${where} ORDER BY id ASC LIMIT ? OFFSET ?`,
+        [...params, limitNum, offset]
+      );
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM users WHERE ${where}`,
+        params
+      );
+      return res.json({
+        data: rows,
+        pagination: { page: pageNum, limit: limitNum, total },
+      });
+    }
+
     const [rows] = await pool.query(
-      'SELECT id, full_name, phone, email, role, status, avatar_url, created_at FROM users ORDER BY id ASC'
+      `SELECT id, full_name, phone, email, role, status, avatar_url, created_at
+       FROM users WHERE ${where} ORDER BY id ASC`,
+      params
     );
     res.json(rows);
   } catch (err) {
@@ -504,6 +727,13 @@ async function createUser(req, res) {
   const trimmedEmail = String(email).trim().toLowerCase();
   const allowedRoles = ['admin', 'dentist', 'staff', 'customer'];
   const finalRole = allowedRoles.includes(role) ? role : 'staff';
+
+  const security = await getSecuritySettings();
+  const pwdCheck = await validatePassword(password, security);
+  if (!pwdCheck.ok) {
+    return res.status(400).json({ message: pwdCheck.message });
+  }
+
   try {
     const [existing] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [
       trimmedEmail,
@@ -513,8 +743,8 @@ async function createUser(req, res) {
     }
     const passwordHash = await bcrypt.hash(String(password), 10);
     const [result] = await pool.query(
-      `INSERT INTO users (full_name, phone, email, password_hash, role, status)
-       VALUES (?, ?, ?, ?, ?, 'active')`,
+      `INSERT INTO users (full_name, phone, email, password_hash, role, status, password_updated_at)
+       VALUES (?, ?, ?, ?, ?, 'active', NOW())`,
       [String(full_name).trim(), phone ? String(phone).trim() : null, trimmedEmail, passwordHash, finalRole]
     );
     const [rows] = await pool.query(
@@ -524,6 +754,9 @@ async function createUser(req, res) {
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('createUser error', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Email này đã được sử dụng' });
+    }
     res.status(500).json({ message: 'Lỗi hệ thống' });
   }
 }
@@ -532,6 +765,17 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { full_name, phone, email, role, status, password } = req.body || {};
   try {
+    if (email !== undefined) {
+      const trimmedEmail = String(email).trim().toLowerCase();
+      const [dup] = await pool.query('SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1', [
+        trimmedEmail,
+        id,
+      ]);
+      if (dup.length) {
+        return res.status(400).json({ message: 'Email này đã được sử dụng' });
+      }
+    }
+
     const updates = [];
     const params = [];
     if (full_name !== undefined) {
@@ -554,10 +798,16 @@ async function updateUser(req, res) {
       updates.push('status = ?');
       params.push(status);
     }
-    if (password !== undefined && String(password).length >= 6) {
+    if (password !== undefined && String(password).length > 0) {
+      const security = await getSecuritySettings();
+      const pwdCheck = await validatePassword(password, security);
+      if (!pwdCheck.ok) {
+        return res.status(400).json({ message: pwdCheck.message });
+      }
       const bcrypt = require('bcrypt');
       updates.push('password_hash = ?');
       params.push(await bcrypt.hash(String(password), 10));
+      updates.push('password_updated_at = NOW()');
     }
     if (updates.length === 0) {
       return res.status(400).json({ message: 'Không có trường nào để cập nhật' });
@@ -574,22 +824,43 @@ async function updateUser(req, res) {
     res.json(rows[0]);
   } catch (err) {
     console.error('updateUser error', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ message: 'Email này đã được sử dụng' });
+    }
     res.status(500).json({ message: 'Lỗi hệ thống' });
   }
 }
 
 async function deleteUser(req, res) {
   const { id } = req.params;
+  const targetId = Number(id);
+  if (req.user && Number(req.user.id) === targetId) {
+    return res.status(400).json({ message: 'Không thể xoá tài khoản đang đăng nhập' });
+  }
+
   try {
+    const [[target]] = await pool.query('SELECT id, role FROM users WHERE id = ? LIMIT 1', [targetId]);
+    if (!target) {
+      return res.status(404).json({ message: 'Không tìm thấy tài khoản' });
+    }
+    if (target.role === 'admin') {
+      const [adminCount] = await pool.query(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND status = 'active'"
+      );
+      if ((adminCount[0]?.c || 0) <= 1) {
+        return res.status(400).json({ message: 'Không thể xoá admin cuối cùng đang hoạt động' });
+      }
+    }
+
     const [dentistRef] = await pool.query('SELECT id FROM dentists WHERE user_id = ? LIMIT 1', [
-      id,
+      targetId,
     ]);
     if (dentistRef.length) {
       return res
         .status(400)
         .json({ message: 'Không thể xoá: tài khoản đã gắn với bác sĩ. Hãy xoá bác sĩ trước.' });
     }
-    const [result] = await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    const [result] = await pool.query('DELETE FROM users WHERE id = ?', [targetId]);
     if (!result.affectedRows) {
       return res.status(404).json({ message: 'Không tìm thấy tài khoản' });
     }
@@ -601,14 +872,45 @@ async function deleteUser(req, res) {
 }
 
 async function listDentists(req, res) {
+  const { page, limit = 20, q } = req.query;
   try {
-    const [rows] = await pool.query(
-      `SELECT d.id, d.user_id, d.avatar_url, d.specialty, d.experience_year, d.description, d.is_active,
-              u.full_name, u.phone, u.email
-       FROM dentists d
-       JOIN users u ON d.user_id = u.id
-       ORDER BY u.full_name ASC`
-    );
+    let where = '1=1';
+    const params = [];
+    if (q) {
+      where += ' AND (u.full_name LIKE ? OR u.email LIKE ? OR d.specialty LIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like, like);
+    }
+
+    const baseSelect = `
+      SELECT d.id, d.user_id, d.avatar_url, d.specialty, d.experience_year, d.description, d.is_active,
+             u.full_name, u.phone, u.email
+      FROM dentists d
+      JOIN users u ON d.user_id = u.id
+      WHERE ${where}
+      ORDER BY u.full_name ASC
+    `;
+
+    if (page) {
+      const pageNum = Math.max(1, Number(page));
+      const limitNum = Math.max(1, Math.min(100, Number(limit)));
+      const offset = (pageNum - 1) * limitNum;
+      const [rows] = await pool.query(`${baseSelect} LIMIT ? OFFSET ?`, [
+        ...params,
+        limitNum,
+        offset,
+      ]);
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM dentists d JOIN users u ON d.user_id = u.id WHERE ${where}`,
+        params
+      );
+      return res.json({
+        data: rows,
+        pagination: { page: pageNum, limit: limitNum, total },
+      });
+    }
+
+    const [rows] = await pool.query(baseSelect, params);
     res.json(rows);
   } catch (err) {
     console.error('listDentists error', err);
@@ -620,6 +922,9 @@ async function createDentist(req, res) {
   const { user_id, specialty, experience_year, description, is_active, avatar_url } = req.body || {};
   if (!user_id) {
     return res.status(400).json({ message: 'Thiếu tài khoản (user_id)' });
+  }
+  if (!specialty || !isValidSpecialty(specialty)) {
+    return res.status(400).json({ message: 'Vui lòng chọn chuyên khoa từ danh sách' });
   }
   try {
     const [existing] = await pool.query('SELECT id FROM dentists WHERE user_id = ? LIMIT 1', [
@@ -662,8 +967,11 @@ async function updateDentist(req, res) {
     const updates = [];
     const params = [];
     if (specialty !== undefined) {
+      if (!specialty || !isValidSpecialty(specialty)) {
+        return res.status(400).json({ message: 'Vui lòng chọn chuyên khoa từ danh sách' });
+      }
       updates.push('specialty = ?');
-      params.push(specialty ? String(specialty).trim() : null);
+      params.push(String(specialty).trim());
     }
     if (experience_year !== undefined) {
       updates.push('experience_year = ?');
@@ -724,9 +1032,20 @@ async function deleteDentist(req, res) {
 }
 
 async function listServicesConfig(req, res) {
+  const { page, limit = 20, q } = req.query;
   try {
+    let where = '1=1';
+    const params = [];
+    if (q) {
+      where += ' AND (name LIKE ? OR description LIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like);
+    }
+
     const [rows] = await pool.query(
-      'SELECT id, name, description, price, duration_minutes, is_active, thumbnail_url FROM services ORDER BY id ASC'
+      `SELECT id, name, description, price, duration_minutes, is_active, thumbnail_url
+       FROM services WHERE ${where} ORDER BY id ASC`,
+      params
     );
     const [links] = await pool.query('SELECT service_id, dentist_id FROM service_dentists');
     const byService = {};
@@ -738,6 +1057,21 @@ async function listServicesConfig(req, res) {
       ...s,
       dentist_ids: byService[s.id] || [],
     }));
+
+    if (page) {
+      const pageNum = Math.max(1, Number(page));
+      const limitNum = Math.max(1, Math.min(100, Number(limit)));
+      const offset = (pageNum - 1) * limitNum;
+      return res.json({
+        data: result.slice(offset, offset + limitNum),
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: result.length,
+        },
+      });
+    }
+
     res.json(result);
   } catch (err) {
     console.error('listServicesConfig error', err);
@@ -991,6 +1325,7 @@ async function updateClinicSettings(req, res) {
         ]
       );
     }
+    invalidateClinicSettingsCache();
     res.json({ message: 'Lưu cấu hình phòng khám thành công' });
   } catch (err) {
     console.error('updateClinicSettings error', err);
@@ -1366,6 +1701,9 @@ module.exports = {
   updatePatient,
   deletePatient,
   getPatientRecords,
+  createMedicalRecord,
+  updateMedicalRecord,
+  deleteMedicalRecord,
   listUsers,
   createUser,
   updateUser,

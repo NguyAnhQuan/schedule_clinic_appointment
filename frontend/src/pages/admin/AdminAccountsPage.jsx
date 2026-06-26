@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Pagination from '../../components/Pagination';
+
+const PAGE_SIZE = 20;
 
 function AdminAccountsPage() {
   const navigate = useNavigate();
@@ -28,6 +31,8 @@ function AdminAccountsPage() {
   });
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -37,17 +42,29 @@ function AdminAccountsPage() {
     load();
   }, [navigate]);
 
-  async function load() {
+  async function load(params = {}) {
     setLoading(true);
     setError('');
     try {
-      const data = await AdminApi.getUsers();
-      setItems(Array.isArray(data) ? data : []);
+      const data = await AdminApi.getUsers({ page, limit: PAGE_SIZE, ...params });
+      if (Array.isArray(data)) {
+        setItems(data);
+        setPagination({ total: data.length, limit: PAGE_SIZE });
+      } else {
+        setItems(data.data || []);
+        setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
+        if (data.pagination?.page) setPage(data.pagination.page);
+      }
     } catch (err) {
       setError(err.message || 'Không tải được danh sách tài khoản');
     } finally {
       setLoading(false);
     }
+  }
+
+  function handlePageChange(nextPage) {
+    setPage(nextPage);
+    load({ page: nextPage });
   }
 
   async function handleCreate(e) {
@@ -221,6 +238,12 @@ function AdminAccountsPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            total={pagination.total}
+            limit={pagination.limit || PAGE_SIZE}
+            onPageChange={handlePageChange}
+          />
         </div>
 
         {/* Modal thêm tài khoản */}

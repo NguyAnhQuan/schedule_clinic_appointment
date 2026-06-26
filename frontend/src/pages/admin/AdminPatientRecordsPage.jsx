@@ -8,19 +8,55 @@ function AdminPatientRecordsPage() {
   const { id } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    appointment_id: '',
+    diagnosis: '',
+    treatment: '',
+  });
+
+  async function loadRecords() {
+    setError('');
+    try {
+      const res = await AdminApi.getPatientRecords(id);
+      setData(res);
+    } catch (err) {
+      setError(err.message || 'Không tải được hồ sơ bệnh án');
+    }
+  }
 
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
       return;
     }
-    AdminApi.getPatientRecords(id)
-      .then(setData)
-      .catch((err) => setError(err.message || 'Không tải được hồ sơ bệnh án'));
+    loadRecords();
   }, [id, navigate]);
 
   const patient = data?.patient;
   const records = data?.records || [];
+  const appointmentsWithoutRecords = data?.appointments_without_records || [];
+
+  async function handleCreateRecord(e) {
+    e.preventDefault();
+    if (!createForm.appointment_id) {
+      setError('Vui lòng chọn lịch hẹn');
+      return;
+    }
+    setCreating(true);
+    setError('');
+    try {
+      await AdminApi.createMedicalRecord(id, createForm);
+      setShowCreate(false);
+      setCreateForm({ appointment_id: '', diagnosis: '', treatment: '' });
+      await loadRecords();
+    } catch (err) {
+      setError(err.message || 'Tạo hồ sơ thất bại');
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <AdminLayout active="patients" title="Patient Medical Records">
@@ -80,17 +116,19 @@ function AdminPatientRecordsPage() {
                 </div>
               </div>
             </div>
-            <div className="text-[11px] text-slate-600 max-w-sm">
-              <div className="text-slate-400 uppercase tracking-wide font-semibold mb-1">
-                Ghi chú hồ sơ
-              </div>
-              <div className="text-slate-800 line-clamp-3">{patient.note || 'Không có ghi chú.'}</div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              disabled={appointmentsWithoutRecords.length === 0}
+              className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-[11px] font-medium disabled:opacity-50"
+            >
+              <span className="material-icons text-sm">note_add</span>
+              Thêm hồ sơ
+            </button>
           </section>
         )}
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Cột trái: danh sách lần khám dạng timeline nhẹ */}
           <div className="lg:col-span-2 rounded-xl bg-white border border-slate-200 p-4 md:p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
@@ -127,7 +165,7 @@ function AdminPatientRecordsPage() {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-[11px] text-slate-700 hover:border-primary hover:text-primary"
                     >
                       <span className="material-icons text-sm">open_in_new</span>
-                      <span>Xem chi tiết</span>
+                      <span>Xem / Sửa</span>
                     </button>
                   </div>
                 </div>
@@ -138,7 +176,6 @@ function AdminPatientRecordsPage() {
             </div>
           </div>
 
-          {/* Cột phải: tóm tắt nhanh */}
           <div className="space-y-4">
             <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900 mb-3">Tổng quan</h3>
@@ -159,19 +196,69 @@ function AdminPatientRecordsPage() {
                 </div>
               </div>
             </div>
-            <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900 mb-3">Ghi chú nội bộ</h3>
-              <p className="text-[11px] text-slate-600">
-                Màn hình chi tiết điều trị, biểu đồ răng (dental chart) và đơn thuốc sẽ được triển
-                khai ở phiên bản sau, giống như thiết kế ADMIN.
-              </p>
-            </div>
           </div>
         </section>
+
+        {showCreate && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5">
+              <h2 className="text-sm font-semibold text-slate-900 mb-4">Thêm hồ sơ bệnh án</h2>
+              <form onSubmit={handleCreateRecord} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] text-slate-600 mb-1">Lịch hẹn</label>
+                  <select
+                    value={createForm.appointment_id}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, appointment_id: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[11px]"
+                    required
+                  >
+                    <option value="">Chọn lịch hẹn chưa có hồ sơ</option>
+                    {appointmentsWithoutRecords.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        #{a.id} — {a.service_name || 'Dịch vụ'} ({a.appointment_time?.replace('T', ' ')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-600 mb-1">Chẩn đoán</label>
+                  <textarea
+                    value={createForm.diagnosis}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, diagnosis: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[11px] min-h-[80px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-600 mb-1">Điều trị</label>
+                  <textarea
+                    value={createForm.treatment}
+                    onChange={(e) => setCreateForm((p) => ({ ...p, treatment: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[11px] min-h-[80px]"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreate(false)}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-[11px]"
+                  >
+                    Huỷ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    className="px-3 py-2 rounded-lg bg-primary text-white text-[11px] disabled:opacity-50"
+                  >
+                    {creating ? 'Đang lưu...' : 'Lưu hồ sơ'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
 }
 
 export default AdminPatientRecordsPage;
-

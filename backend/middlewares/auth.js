@@ -3,14 +3,14 @@ const { pool } = require('../config/db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_jwt_key_change_me';
 
-function generateToken(user) {
+function generateToken(user, expiresIn = '8h') {
   const payload = {
     id: user.id,
     role: user.role,
     full_name: user.full_name,
     email: user.email,
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
 }
 
 async function authMiddleware(req, res, next) {

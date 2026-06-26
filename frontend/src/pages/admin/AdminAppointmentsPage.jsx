@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Pagination from '../../components/Pagination';
+
+const PAGE_SIZE = 20;
 
 const STATUS_LABELS = {
   pending: 'Chờ xác nhận',
@@ -28,6 +31,26 @@ function AdminAppointmentsPage() {
   const [keyword, setKeyword] = useState('');
   const [actionAppointment, setActionAppointment] = useState(null);
   const [updating, setUpdating] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
+
+  async function applyAppointmentStatus(status, options = {}) {
+    const { confirmMessage } = options;
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    if (!actionAppointment) return;
+    setUpdating(true);
+    setActionError('');
+    try {
+      await AdminApi.updateAppointmentStatus(actionAppointment.id, status);
+      setActionAppointment(null);
+      loadSilent(buildParams());
+    } catch (err) {
+      setActionError(err.message || 'Không cập nhật được trạng thái');
+    } finally {
+      setUpdating(false);
+    }
+  }
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -41,7 +64,7 @@ function AdminAppointmentsPage() {
   }, []);
 
   function buildParams() {
-    const p = {};
+    const p = { page, limit: PAGE_SIZE };
     if (statusFilter) p.status = statusFilter;
     if (dateFilter) p.date = dateFilter;
     if (shiftFilter) p.shift_id = shiftFilter;
@@ -56,6 +79,8 @@ function AdminAppointmentsPage() {
       const q = { ...buildParams(), ...params };
       const data = await AdminApi.getAppointments(q);
       setItems(data.data || []);
+      setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
+      if (data.pagination?.page) setPage(data.pagination.page);
     } catch (err) {
       setError(err.message || 'Không tải được danh sách lịch hẹn');
     } finally {
@@ -70,14 +95,21 @@ function AdminAppointmentsPage() {
       const data = await AdminApi.getAppointments(q);
       const list = Array.isArray(data?.data) ? data.data : [];
       setItems(list);
+      if (data.pagination) setPagination(data.pagination);
     } catch {
       setItems((prev) => prev.length ? prev : []);
     }
   }
 
+  function handlePageChange(nextPage) {
+    setPage(nextPage);
+    load({ ...buildParams(), page: nextPage });
+  }
+
   function handleFilterChange(value) {
     setStatusFilter(value);
-    load({ ...buildParams(), status: value || undefined });
+    setPage(1);
+    load({ ...buildParams(), status: value || undefined, page: 1 });
   }
 
   function handleResetFilters() {
@@ -86,7 +118,8 @@ function AdminAppointmentsPage() {
     setShiftFilter('');
     setDentistFilter('');
     setKeyword('');
-    load();
+    setPage(1);
+    load({ page: 1, limit: PAGE_SIZE });
   }
 
   return (
@@ -133,13 +166,13 @@ function AdminAppointmentsPage() {
             <input
               type="date"
               value={dateFilter}
-              onChange={(e) => { setDateFilter(e.target.value); load({ ...buildParams(), date: e.target.value || undefined }); }}
+              onChange={(e) => { setDateFilter(e.target.value); setPage(1); load({ ...buildParams(), date: e.target.value || undefined, page: 1 }); }}
               className="rounded-lg border border-slate-300 bg-white text-slate-700 py-2 pl-3 pr-3 text-[11px]"
             />
             <div className="relative">
               <select
                 value={shiftFilter}
-                onChange={(e) => { setShiftFilter(e.target.value); load({ ...buildParams(), shift_id: e.target.value || undefined }); }}
+                onChange={(e) => { setShiftFilter(e.target.value); setPage(1); load({ ...buildParams(), shift_id: e.target.value || undefined, page: 1 }); }}
                 className="appearance-none bg-white border border-slate-300 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-[11px] cursor-pointer"
               >
                 <option value="">Tất cả ca</option>
@@ -152,7 +185,7 @@ function AdminAppointmentsPage() {
             <div className="relative">
               <select
                 value={dentistFilter}
-                onChange={(e) => { setDentistFilter(e.target.value); load({ ...buildParams(), dentist_id: e.target.value || undefined }); }}
+                onChange={(e) => { setDentistFilter(e.target.value); setPage(1); load({ ...buildParams(), dentist_id: e.target.value || undefined, page: 1 }); }}
                 className="appearance-none bg-white border border-slate-300 text-slate-700 py-2 pl-3 pr-8 rounded-lg text-[11px] cursor-pointer"
               >
                 <option value="">Tất cả bác sĩ</option>
@@ -268,7 +301,7 @@ function AdminAppointmentsPage() {
                       <td className="py-3 px-4 text-right">
                         <button
                           type="button"
-                          onClick={() => setActionAppointment(a)}
+                          onClick={() => { setActionAppointment(a); setActionError(''); }}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 text-[11px] font-medium text-slate-700 hover:bg-primary/10 hover:border-primary hover:text-primary transition-colors"
                         >
                           <span className="material-icons text-sm">settings</span>
@@ -317,6 +350,13 @@ function AdminAppointmentsPage() {
           </div>
         )}
 
+        <Pagination
+          page={page}
+          total={pagination.total}
+          limit={pagination.limit || PAGE_SIZE}
+          onPageChange={handlePageChange}
+        />
+
         {/* Modal xác nhận thao tác lịch hẹn */}
         {actionAppointment && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -325,7 +365,7 @@ function AdminAppointmentsPage() {
                 <h2 className="text-sm font-semibold text-slate-900">Thao tác lịch hẹn</h2>
                 <button
                   type="button"
-                  onClick={() => { setActionAppointment(null); setUpdating(false); }}
+                  onClick={() => { setActionAppointment(null); setUpdating(false); setActionError(''); }}
                   className="text-slate-400 hover:text-slate-600"
                 >
                   <span className="material-icons">close</span>
@@ -337,23 +377,17 @@ function AdminAppointmentsPage() {
                 <p><span className="font-medium">Thời gian:</span> {actionAppointment.appointment_time?.replace('T', ' ') || '—'}</p>
                 <p><span className="font-medium">Trạng thái hiện tại:</span> {STATUS_LABELS[actionAppointment.status] || actionAppointment.status}</p>
               </div>
+              {actionError && (
+                <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-600">
+                  {actionError}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {actionAppointment.status === 'pending' && (
                   <button
                     type="button"
                     disabled={updating}
-                    onClick={async () => {
-                      setUpdating(true);
-                      try {
-                        await AdminApi.updateAppointmentStatus(actionAppointment.id, 'confirmed');
-                        setActionAppointment(null);
-                        loadSilent(buildParams());
-                      } catch (err) {
-                        alert(err.message || 'Không cập nhật được');
-                      } finally {
-                        setUpdating(false);
-                      }
-                    }}
+                    onClick={() => applyAppointmentStatus('confirmed')}
                     className="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-800 text-[11px] font-medium hover:bg-emerald-200 disabled:opacity-50"
                   >
                     Xác nhận lịch
@@ -363,39 +397,27 @@ function AdminAppointmentsPage() {
                   <button
                     type="button"
                     disabled={updating}
-                    onClick={async () => {
-                      setUpdating(true);
-                      try {
-                        await AdminApi.updateAppointmentStatus(actionAppointment.id, 'checked_in');
-                        setActionAppointment(null);
-                        loadSilent(buildParams());
-                      } catch (err) {
-                        alert(err.message || 'Không cập nhật được');
-                      } finally {
-                        setUpdating(false);
-                      }
-                    }}
+                    onClick={() => applyAppointmentStatus('checked_in')}
                     className="px-3 py-2 rounded-lg bg-sky-100 text-sky-800 text-[11px] font-medium hover:bg-sky-200 disabled:opacity-50"
                   >
                     Đã đến
+                  </button>
+                )}
+                {['pending', 'confirmed'].includes(actionAppointment.status) && (
+                  <button
+                    type="button"
+                    disabled={updating}
+                    onClick={() => applyAppointmentStatus('no_show', { confirmMessage: 'Đánh dấu bệnh nhân không đến khám?' })}
+                    className="px-3 py-2 rounded-lg bg-orange-100 text-orange-800 text-[11px] font-medium hover:bg-orange-200 disabled:opacity-50"
+                  >
+                    Không đến
                   </button>
                 )}
                 {['confirmed', 'checked_in', 'in_progress'].includes(actionAppointment.status) && (
                   <button
                     type="button"
                     disabled={updating}
-                    onClick={async () => {
-                      setUpdating(true);
-                      try {
-                        await AdminApi.updateAppointmentStatus(actionAppointment.id, 'in_progress');
-                        setActionAppointment(null);
-                        loadSilent(buildParams());
-                      } catch (err) {
-                        alert(err.message || 'Không cập nhật được');
-                      } finally {
-                        setUpdating(false);
-                      }
-                    }}
+                    onClick={() => applyAppointmentStatus('in_progress')}
                     className="px-3 py-2 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-medium hover:bg-amber-200 disabled:opacity-50"
                   >
                     Đang khám
@@ -405,18 +427,7 @@ function AdminAppointmentsPage() {
                   <button
                     type="button"
                     disabled={updating}
-                    onClick={async () => {
-                      setUpdating(true);
-                      try {
-                        await AdminApi.updateAppointmentStatus(actionAppointment.id, 'completed');
-                        setActionAppointment(null);
-                        loadSilent(buildParams());
-                      } catch (err) {
-                        alert(err.message || 'Không cập nhật được');
-                      } finally {
-                        setUpdating(false);
-                      }
-                    }}
+                    onClick={() => applyAppointmentStatus('completed')}
                     className="px-3 py-2 rounded-lg bg-primary/20 text-primary text-[11px] font-medium hover:bg-primary/30 disabled:opacity-50"
                   >
                     Hoàn thành
@@ -426,19 +437,7 @@ function AdminAppointmentsPage() {
                   <button
                     type="button"
                     disabled={updating}
-                    onClick={async () => {
-                      if (!window.confirm('Bạn có chắc muốn huỷ lịch hẹn này?')) return;
-                      setUpdating(true);
-                      try {
-                        await AdminApi.updateAppointmentStatus(actionAppointment.id, 'canceled');
-                        setActionAppointment(null);
-                        loadSilent(buildParams());
-                      } catch (err) {
-                        alert(err.message || 'Không huỷ được');
-                      } finally {
-                        setUpdating(false);
-                      }
-                    }}
+                    onClick={() => applyAppointmentStatus('canceled', { confirmMessage: 'Bạn có chắc muốn huỷ lịch hẹn này?' })}
                     className="px-3 py-2 rounded-lg bg-red-100 text-red-700 text-[11px] font-medium hover:bg-red-200 disabled:opacity-50"
                   >
                     Huỷ lịch

@@ -38,6 +38,7 @@ function AdminLayout({ active, title, children }) {
       (role === 'staff' && staffPerms.calendar_overview !== false) ||
       role === 'dentist',
     settings: role === 'admin',
+    shifts: role === 'admin',
   };
 
   return (
@@ -143,6 +144,19 @@ function AdminLayout({ active, title, children }) {
             >
               <span className="material-icons text-xl">medical_services</span>
               <span>Services</span>
+            </a>
+          )}
+          {can.shifts && (
+            <a
+              href="/admin/shifts"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
+                active === 'shifts'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-primary'
+              }`}
+            >
+              <span className="material-icons text-xl">schedule</span>
+              <span>Ca làm việc</span>
             </a>
           )}
           {can.staffSchedules && (

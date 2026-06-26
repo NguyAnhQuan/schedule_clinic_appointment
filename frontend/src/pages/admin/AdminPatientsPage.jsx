@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminApi, getAuthToken, resolveMediaUrl } from '../../services/api';
+import { AdminApi, getAuthToken, resolveMediaUrl, toRelativeMediaPath } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Pagination from '../../components/Pagination';
+
+const PAGE_SIZE = 20;
 
 function AdminPatientsPage() {
   const navigate = useNavigate();
@@ -29,6 +32,8 @@ function AdminPatientsPage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -43,8 +48,10 @@ function AdminPatientsPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await AdminApi.getPatients(params);
+      const data = await AdminApi.getPatients({ page, limit: PAGE_SIZE, ...params });
       setItems(data.data || []);
+      setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
+      if (data.pagination?.page) setPage(data.pagination.page);
     } catch (err) {
       setError(err.message || 'Không tải được danh sách bệnh nhân');
     } finally {
@@ -54,7 +61,13 @@ function AdminPatientsPage() {
 
   function handleSearch(e) {
     e.preventDefault();
-    load({ q });
+    setPage(1);
+    load({ q, page: 1 });
+  }
+
+  function handlePageChange(nextPage) {
+    setPage(nextPage);
+    load({ q, page: nextPage });
   }
 
   async function handleCreate(e) {
@@ -106,7 +119,7 @@ function AdminPatientsPage() {
     setError('');
     try {
       const res = await AdminApi.uploadAvatar(file);
-      setEditForm((prev) => ({ ...prev, avatar_url: res.url }));
+      setEditForm((prev) => ({ ...prev, avatar_url: toRelativeMediaPath(res.path || res.url) }));
     } catch (err) {
       setError(err.message || 'Upload ảnh đại diện thất bại');
     } finally {
@@ -120,7 +133,7 @@ function AdminPatientsPage() {
     setError('');
     try {
       const res = await AdminApi.uploadAvatar(file);
-      setCreateForm((prev) => ({ ...prev, avatar_url: res.url }));
+      setCreateForm((prev) => ({ ...prev, avatar_url: toRelativeMediaPath(res.path || res.url) }));
     } catch (err) {
       setError(err.message || 'Upload ảnh đại diện thất bại');
     } finally {
@@ -308,6 +321,12 @@ function AdminPatientsPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            total={pagination.total}
+            limit={pagination.limit || PAGE_SIZE}
+            onPageChange={handlePageChange}
+          />
         </div>
 
         {/* Modal tạo bệnh nhân */}

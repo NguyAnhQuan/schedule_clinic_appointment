@@ -8,35 +8,73 @@ function AdminPatientRecordDetailPage() {
   const { id, recordId } = useParams();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [fetchedId, setFetchedId] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({ diagnosis: '', treatment: '' });
   const loading = fetchedId !== id;
+
+  async function loadData() {
+    setError('');
+    try {
+      const res = await AdminApi.getPatientRecords(id);
+      setData(res);
+      setFetchedId(id);
+      const record = (res.records || []).find((r) => String(r.id) === String(recordId));
+      if (record) {
+        setEditForm({
+          diagnosis: record.diagnosis || '',
+          treatment: record.treatment || '',
+        });
+      }
+    } catch (err) {
+      setError(err.message || 'Không tải được hồ sơ bệnh án');
+      setFetchedId(id);
+    }
+  }
 
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
       return;
     }
-    let cancelled = false;
-    AdminApi.getPatientRecords(id)
-      .then((res) => {
-        if (cancelled) return;
-        setData(res);
-        setFetchedId(id);
-        setError('');
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err.message || 'Không tải được hồ sơ bệnh án');
-        setFetchedId(id);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, navigate]);
+    loadData();
+  }, [id, recordId, navigate]);
 
   const patient = data?.patient;
   const records = data?.records || [];
   const record = records.find((r) => String(r.id) === String(recordId));
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      await AdminApi.updateMedicalRecord(recordId, editForm);
+      setEditing(false);
+      setSuccess('Đã cập nhật hồ sơ bệnh án');
+      await loadData();
+    } catch (err) {
+      setError(err.message || 'Cập nhật thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Xoá hồ sơ bệnh án này? Thao tác không thể hoàn tác.')) return;
+    setSaving(true);
+    setError('');
+    try {
+      await AdminApi.deleteMedicalRecord(recordId);
+      navigate(`/admin/patients/${id}/records`);
+    } catch (err) {
+      setError(err.message || 'Xoá thất bại');
+      setSaving(false);
+    }
+  }
 
   return (
     <AdminLayout active="patients" title="Patient Record Detail">
@@ -55,6 +93,11 @@ function AdminPatientRecordDetailPage() {
             {error}
           </div>
         )}
+        {success && (
+          <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-[11px] text-emerald-700">
+            {success}
+          </div>
+        )}
 
         {loading && (
           <div className="rounded-lg bg-white border border-slate-200 px-3 py-3 text-[11px] text-slate-600">
@@ -64,7 +107,7 @@ function AdminPatientRecordDetailPage() {
 
         {!loading && !record && (
           <div className="rounded-lg bg-white border border-amber-200 px-3 py-3 text-[11px] text-amber-700">
-            Không tìm thấy hồ sơ bệnh án này. Có thể hồ sơ đã bị xoá hoặc đường dẫn không hợp lệ.
+            Không tìm thấy hồ sơ bệnh án này.
           </div>
         )}
 
@@ -93,65 +136,77 @@ function AdminPatientRecordDetailPage() {
                   <div className="flex items-center gap-2">
                     <h1 className="text-base font-semibold text-slate-900">{patient.full_name}</h1>
                     <span className="px-2 py-0.5 rounded-full bg-slate-100 text-[10px] text-slate-600 font-medium">
-                      ID: {patient.id}
+                      Hồ sơ #{record.id}
                     </span>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <span className="material-icons text-xs">call</span>
-                      {patient.phone || '—'}
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                    <span className="flex items-center gap-1">
-                      <span className="material-icons text-xs">mail</span>
-                      {patient.email || '—'}
-                    </span>
+                  <div className="mt-1 text-[11px] text-slate-500">
+                    {record.service_name || '—'} · {record.appointment_time?.replace('T', ' ') || '—'}
                   </div>
                 </div>
               </div>
-              <div className="text-[11px] text-slate-600 max-w-sm">
-                <div className="text-slate-400 uppercase tracking-wide font-semibold mb-1">
-                  Ghi chú hồ sơ
-                </div>
-                <div className="text-slate-800 line-clamp-3">{patient.note || 'Không có ghi chú.'}</div>
+              <div className="flex gap-2">
+                {!editing ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-[11px] hover:border-primary hover:text-primary"
+                  >
+                    Sửa hồ sơ
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(false);
+                      setEditForm({
+                        diagnosis: record.diagnosis || '',
+                        treatment: record.treatment || '',
+                      });
+                    }}
+                    className="px-3 py-2 rounded-lg border border-slate-300 text-[11px]"
+                  >
+                    Huỷ sửa
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="px-3 py-2 rounded-lg bg-red-100 text-red-700 text-[11px] hover:bg-red-200 disabled:opacity-50"
+                >
+                  Xoá hồ sơ
+                </button>
               </div>
             </section>
 
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 rounded-xl bg-white border border-slate-200 p-4 md:p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                    <span className="material-icons text-primary text-sm">assignment</span>
-                    Chi tiết hồ sơ khám
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] text-slate-600">
-                    Mã hồ sơ: {record.id}
-                  </span>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 text-[11px] text-slate-700">
+            <section className="rounded-xl bg-white border border-slate-200 p-4 md:p-5 shadow-sm">
+              {editing ? (
+                <form onSubmit={handleSave} className="space-y-4">
                   <div>
-                    <div className="text-slate-500 mb-0.5">Dịch vụ</div>
-                    <div className="text-sm text-slate-900">{record.service_name || '—'}</div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Chẩn đoán</label>
+                    <textarea
+                      value={editForm.diagnosis}
+                      onChange={(e) => setEditForm((p) => ({ ...p, diagnosis: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[11px] min-h-[100px]"
+                    />
                   </div>
                   <div>
-                    <div className="text-slate-500 mb-0.5">Thời gian lịch hẹn</div>
-                    <div>{record.appointment_time?.replace('T', ' ') || '—'}</div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Điều trị</label>
+                    <textarea
+                      value={editForm.treatment}
+                      onChange={(e) => setEditForm((p) => ({ ...p, treatment: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[11px] min-h-[100px]"
+                    />
                   </div>
-                  <div>
-                    <div className="text-slate-500 mb-0.5">Trạng thái lịch hẹn</div>
-                    <div className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] text-slate-700">
-                      {record.status}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 mb-0.5">Ngày tạo hồ sơ</div>
-                    <div>{record.created_at?.replace('T', ' ') || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 mb-0.5">Cập nhật lần cuối</div>
-                    <div>{record.updated_at?.replace('T', ' ') || '—'}</div>
-                  </div>
-                </div>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 rounded-lg bg-primary text-white text-[11px] disabled:opacity-50"
+                  >
+                    {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                  </button>
+                </form>
+              ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <div className="text-slate-500 mb-1 text-[11px] uppercase tracking-wide font-semibold">
@@ -170,38 +225,7 @@ function AdminPatientRecordDetailPage() {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Tóm tắt</h3>
-                  <div className="space-y-2 text-[11px] text-slate-700">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Dịch vụ</span>
-                      <span className="font-medium text-slate-900 max-w-[160px] text-right line-clamp-2">
-                        {record.service_name || '—'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Ngày khám</span>
-                      <span className="font-medium text-slate-900">
-                        {record.appointment_time?.slice(0, 10) || '—'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Trạng thái</span>
-                      <span className="font-medium text-slate-900">{record.status}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-2">Ghi chú</h3>
-                  <p className="text-[11px] text-slate-600">
-                    Màn hình này chỉ để xem chi tiết hồ sơ. Chức năng chỉnh sửa nội dung, dental
-                    chart và đính kèm X-quang sẽ được bổ sung sau, đúng theo yêu cầu audit log.
-                  </p>
-                </div>
-              </div>
+              )}
             </section>
           </>
         )}
@@ -211,4 +235,3 @@ function AdminPatientRecordDetailPage() {
 }
 
 export default AdminPatientRecordDetailPage;
-

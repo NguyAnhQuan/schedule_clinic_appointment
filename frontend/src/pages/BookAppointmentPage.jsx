@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PublicApi, getAuthToken, getAuthUser, authHeaders, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';
@@ -30,7 +30,7 @@ function BookAppointmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [services, setServices] = useState([]);
-  const [allDentists, setAllDentists] = useState([]);
+  const [dentistsForService, setDentistsForService] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
   const [shiftsForDate, setShiftsForDate] = useState([]);
   const [dentistsForBooking, setDentistsForBooking] = useState([]);
@@ -47,8 +47,31 @@ function BookAppointmentPage() {
   }, []);
 
   useEffect(() => {
-    PublicApi.getDentists().then(setAllDentists).catch(() => setAllDentists([]));
-  }, []);
+    if (!form.service_id) {
+      setDentistsForService([]);
+      return;
+    }
+    PublicApi.getDentists({ service_id: form.service_id })
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.data || [];
+        setDentistsForService(list);
+      })
+      .catch(() => setDentistsForService([]));
+  }, [form.service_id]);
+
+  useEffect(() => {
+    if (!form.dentist_id || !dentistsForService.length) return;
+    const stillValid = dentistsForService.some((d) => String(d.id) === String(form.dentist_id));
+    if (!stillValid) {
+      setForm((prev) => ({
+        ...prev,
+        dentist_id: '',
+        shift_id: '',
+        slot_time: '',
+        appointment_time: '',
+      }));
+    }
+  }, [dentistsForService, form.dentist_id]);
 
   useEffect(() => {
     if (form.service_id) {
@@ -133,16 +156,12 @@ function BookAppointmentPage() {
 
   const selectedService = services.find((s) => String(s.id) === String(form.service_id));
   const selectedShift = shiftsForDate.find((s) => String(s.id) === String(form.shift_id));
-  const selectedDentist = dentistsForBooking.find((d) => String(d.id) === String(form.dentist_id));
+  const selectedDentist =
+    dentistsForBooking.find((d) => String(d.id) === String(form.dentist_id)) ||
+    dentistsForService.find((d) => String(d.id) === String(form.dentist_id));
 
-  const dentistsForService = useMemo(() => {
-    if (!selectedService) return [];
-    const ids = selectedService.dentist_ids || [];
-    if (!ids.length) return [];
-    return (allDentists || []).filter((d) => ids.includes(d.id));
-  }, [selectedService, allDentists]);
-
-  const dentistOptions = form.shift_id && form.work_date ? dentistsForBooking : dentistsForService;
+  const dentistOptions =
+    form.shift_id && form.work_date ? dentistsForBooking : dentistsForService;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -157,7 +176,6 @@ function BookAppointmentPage() {
       }
       if (name === 'work_date') {
         next.shift_id = '';
-        next.dentist_id = '';
         next.slot_time = '';
         next.appointment_time = '';
       }
@@ -311,6 +329,7 @@ function BookAppointmentPage() {
                     <div className="relative">
                       <select
                         value={form.dentist_id}
+                        disabled={!form.service_id}
                         onChange={(e) =>
                           handleChange({
                             target: { name: 'dentist_id', value: e.target.value },
@@ -318,12 +337,18 @@ function BookAppointmentPage() {
                         }
                         className="block w-full rounded-lg border-slate-200 bg-white text-sm text-slate-900 focus:border-primary focus:ring-primary py-2.5 pl-3 pr-8"
                       >
-                        <option value="">Không ưu tiên (để phòng khám sắp xếp)</option>
+                        <option value="">
+                          {!form.service_id
+                            ? 'Chọn dịch vụ trước'
+                            : dentistsForService.length
+                              ? 'Không ưu tiên (để phòng khám sắp xếp)'
+                              : 'Chưa có bác sĩ cho dịch vụ này'}
+                        </option>
                         {dentistOptions.map((d) => (
                           <option key={d.id} value={d.id}>
                             {d.full_name}
                             {typeof d.slots_left === 'number'
-                              ? ` (${d.slots_left} slot còn lại)`
+                              ? ` (${d.slots_left} giờ trống)`
                               : ''}
                           </option>
                         ))}
@@ -410,6 +435,9 @@ function BookAppointmentPage() {
                               setForm((prev) => ({
                                 ...prev,
                                 work_date: dateStr,
+                                shift_id: '',
+                                slot_time: '',
+                                appointment_time: '',
                               }))
                             }
                             className={className}
@@ -455,7 +483,15 @@ function BookAppointmentPage() {
                                 sh.is_full ? 'text-red-600' : 'text-green-600'
                               }`}
                             >
-                              {sh.is_full ? 'Đã đầy' : `Còn ${sh.slots_left} slot`}
+                              {sh.is_full
+                                ? 'Đã đầy'
+                                : `Còn ${sh.slots_left} giờ trống${
+                                    sh.duration_minutes
+                                      ? ` (${sh.duration_minutes} phút/lượt)`
+                                      : selectedService?.duration_minutes
+                                        ? ` (${selectedService.duration_minutes} phút/lượt)`
+                                        : ''
+                                  }`}
                             </p>
                           </button>
                         ))}

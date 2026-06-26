@@ -1,4 +1,13 @@
 const { pool } = require('../config/db');
+const { normalizePhone, normalizePhoneInput, phonesMatch } = require('../utils/phone');
+const {
+  getBookedIntervals,
+  parseAppointmentStartMinutes,
+  slotOverlapsBooked,
+  countAvailableSlotsInShift,
+  countShiftSlotsWithAnyDentist,
+  listAvailableSlotTimes,
+} = require('../utils/appointmentSlots');
 
 function formatDateKey(value) {
   if (!value) return '';
@@ -11,33 +20,53 @@ function formatDateKey(value) {
   return String(value).slice(0, 10);
 }
 
-function normalizePhone(input) {
-  const digits = String(input || '')
-    .trim()
-    .replace(/[^\d]/g, '');
-  if (!digits) return '';
-  // +84xxxxxxxxx -> 0xxxxxxxxx
-  if (digits.startsWith('84') && digits.length >= 11) return `0${digits.slice(2)}`;
-  return digits;
+function inferServiceCategory(name) {
+  const lower = String(name || '').toLowerCase();
+  if (lower.includes('tổng quát') || lower.includes('khám') || lower.includes('cạo')) return 'general';
+  if (lower.includes('tẩy trắng') || lower.includes('thẩm mỹ') || lower.includes('veneer')) return 'aesthetic';
+  if (lower.includes('nhổ') || lower.includes('implant') || lower.includes('phẫu')) return 'surgery';
+  return 'other';
+}
+
+async function attachDentistIdsToServices(rows) {
+  const [links] = await pool.query('SELECT service_id, dentist_id FROM service_dentists');
+  const byService = {};
+  for (const row of links) {
+    const sid = Number(row.service_id);
+    const did = Number(row.dentist_id);
+    if (!byService[sid]) byService[sid] = [];
+    byService[sid].push(did);
+  }
+  return rows.map((s) => ({
+    ...s,
+    dentist_ids: byService[Number(s.id)] || [],
+    category: inferServiceCategory(s.name),
+  }));
 }
 
 async function getServices(req, res) {
+  const { page, limit = 12, category } = req.query;
   try {
     const [rows] = await pool.query(
       'SELECT id, name, description, price, duration_minutes, thumbnail_url FROM services WHERE is_active = 1 ORDER BY id ASC'
     );
-    const [links] = await pool.query('SELECT service_id, dentist_id FROM service_dentists');
-    const byService = {};
-    for (const row of links) {
-      const sid = Number(row.service_id);
-      const did = Number(row.dentist_id);
-      if (!byService[sid]) byService[sid] = [];
-      byService[sid].push(did);
+    let result = await attachDentistIdsToServices(rows);
+    if (category && category !== 'all') {
+      result = result.filter((s) => s.category === category);
     }
-    const result = rows.map((s) => ({
-      ...s,
-      dentist_ids: byService[Number(s.id)] || [],
-    }));
+    if (page) {
+      const pageNum = Math.max(1, Number(page));
+      const limitNum = Math.max(1, Math.min(50, Number(limit)));
+      const offset = (pageNum - 1) * limitNum;
+      return res.json({
+        data: result.slice(offset, offset + limitNum),
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: result.length,
+        },
+      });
+    }
     res.json(result);
   } catch (err) {
     console.error('getServices error', err);
@@ -45,10 +74,9 @@ async function getServices(req, res) {
   }
 }
 
-async function getDentists(req, res) {
-  const { q, specialty } = req.query;
-  try {
-    let sql = `
+function buildDentistsBaseSql(withRatings = true) {
+  if (withRatings) {
+    return `
       SELECT d.id, d.avatar_url, u.full_name, u.email, u.phone,
              d.specialty, d.experience_year, d.description,
              COALESCE(r.avg_rating, 0) AS avg_rating,
@@ -66,52 +94,121 @@ async function getDentists(req, res) {
       ) r ON r.dentist_id = d.id
       WHERE d.is_active = 1
     `;
-    const params = [];
+  }
+  return `
+    SELECT d.id, d.avatar_url, u.full_name, u.email, u.phone,
+           d.specialty, d.experience_year, d.description,
+           0 AS avg_rating, 0 AS rating_count
+    FROM dentists d
+    JOIN users u ON d.user_id = u.id AND u.role = 'dentist'
+    WHERE d.is_active = 1
+  `;
+}
 
-    if (q) {
-      sql += ' AND (u.full_name LIKE ? OR u.email LIKE ?)';
-      const like = `%${q}%`;
-      params.push(like, like);
+function appendDentistFilters(sql, params, { q, specialty, service_id }) {
+  let next = sql;
+  if (q) {
+    next += ' AND (u.full_name LIKE ? OR u.email LIKE ?)';
+    const like = `%${q}%`;
+    params.push(like, like);
+  }
+  if (specialty) {
+    next += ' AND d.specialty LIKE ?';
+    params.push(`%${specialty}%`);
+  }
+  if (service_id) {
+    next += ' AND d.id IN (SELECT dentist_id FROM service_dentists WHERE service_id = ?)';
+    params.push(Number(service_id));
+  }
+  return next;
+}
+
+async function queryDentists(filters, { page, limit } = {}) {
+  const params = [];
+  let sql = appendDentistFilters(buildDentistsBaseSql(true), params, filters);
+  sql += ' ORDER BY d.specialty ASC, u.full_name ASC';
+
+  if (page) {
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Math.min(50, Number(limit) || 9));
+    const offset = (pageNum - 1) * limitNum;
+    const countSql = appendDentistFilters(
+      'SELECT COUNT(*) AS total FROM dentists d JOIN users u ON d.user_id = u.id AND u.role = \'dentist\' WHERE d.is_active = 1',
+      [],
+      filters
+    );
+    const [[{ total }]] = await pool.query(countSql, [...params]);
+    const [rows] = await pool.query(`${sql} LIMIT ? OFFSET ?`, [...params, limitNum, offset]);
+    return {
+      rows,
+      pagination: { page: pageNum, limit: limitNum, total },
+    };
+  }
+
+  const [rows] = await pool.query(sql, params);
+  return { rows, pagination: null };
+}
+
+async function getDentists(req, res) {
+  const { q, specialty, service_id, page, limit } = req.query;
+  try {
+    const result = await queryDentists({ q, specialty, service_id }, { page, limit });
+    if (result.pagination) {
+      return res.json({ data: result.rows, pagination: result.pagination });
     }
-    if (specialty) {
-      sql += ' AND d.specialty LIKE ?';
-      params.push(`%${specialty}%`);
-    }
-
-    sql += ' ORDER BY u.full_name ASC';
-
-    const [rows] = await pool.query(sql, params);
-    res.json(rows);
+    res.json(result.rows);
   } catch (err) {
     if (err && err.code === 'ER_NO_SUCH_TABLE') {
       try {
-        // Fallback nếu DB chưa tạo bảng appointment_ratings
-        let fallbackSql = `
-          SELECT d.id, d.avatar_url, u.full_name, u.email, u.phone,
-                 d.specialty, d.experience_year, d.description,
-                 0 AS avg_rating, 0 AS rating_count
-          FROM dentists d
-          JOIN users u ON d.user_id = u.id AND u.role = 'dentist'
-          WHERE d.is_active = 1
-        `;
-        const fallbackParams = [];
-        if (q) {
-          fallbackSql += ' AND (u.full_name LIKE ? OR u.email LIKE ?)';
-          const like = `%${q}%`;
-          fallbackParams.push(like, like);
+        const params = [];
+        let sql = appendDentistFilters(buildDentistsBaseSql(false), params, { q, specialty, service_id });
+        sql += ' ORDER BY d.specialty ASC, u.full_name ASC';
+        if (page) {
+          const pageNum = Math.max(1, Number(page));
+          const limitNum = Math.max(1, Math.min(50, Number(limit) || 9));
+          const offset = (pageNum - 1) * limitNum;
+          const countParams = [];
+          const countSql = appendDentistFilters(
+            'SELECT COUNT(*) AS total FROM dentists d JOIN users u ON d.user_id = u.id AND u.role = \'dentist\' WHERE d.is_active = 1',
+            countParams,
+            { q, specialty, service_id }
+          );
+          const [[{ total }]] = await pool.query(countSql, countParams);
+          const [rows] = await pool.query(`${sql} LIMIT ? OFFSET ?`, [...params, limitNum, offset]);
+          return res.json({
+            data: rows,
+            pagination: { page: pageNum, limit: limitNum, total },
+          });
         }
-        if (specialty) {
-          fallbackSql += ' AND d.specialty LIKE ?';
-          fallbackParams.push(`%${specialty}%`);
-        }
-        fallbackSql += ' ORDER BY u.full_name ASC';
-        const [rows] = await pool.query(fallbackSql, fallbackParams);
+        const [rows] = await pool.query(sql, params);
         return res.json(rows);
       } catch (e2) {
         console.error('getDentists fallback error', e2);
       }
     }
     console.error('getDentists error', err);
+    res.status(500).json({ message: 'Lỗi hệ thống' });
+  }
+}
+
+async function getDentistsByDepartment(req, res) {
+  const perDept = Math.min(10, Math.max(1, Number(req.query.per_department) || 3));
+  try {
+    const { rows } = await queryDentists({}, {});
+    const grouped = {};
+    for (const row of rows) {
+      const key = row.specialty || 'Khác';
+      if (!grouped[key]) grouped[key] = [];
+      if (grouped[key].length < perDept) grouped[key].push(row);
+    }
+    res.json({
+      departments: Object.entries(grouped).map(([specialty, dentists]) => ({
+        specialty,
+        dentists,
+      })),
+    });
+  } catch (err) {
+    console.error('getDentistsByDepartment error', err);
     res.status(500).json({ message: 'Lỗi hệ thống' });
   }
 }
@@ -222,7 +319,8 @@ async function getAvailableDates(req, res) {
 
 /** GET /shifts-for-date?service_id=&date= — Ca trong ngày (còn slot, có BS trực làm dịch vụ) */
 async function getShiftsForDate(req, res) {
-  const { service_id: serviceId, date, dentist_id: dentistId } = req.query;
+  const { service_id: serviceId, date, dentist_id: dentistIdRaw } = req.query;
+  const dentistId = dentistIdRaw ? Number(dentistIdRaw) : null;
   if (!serviceId || !date) {
     return res.status(400).json({ message: 'Thiếu service_id hoặc date' });
   }
@@ -254,23 +352,31 @@ async function getShiftsForDate(req, res) {
         [serviceId]
       );
       const duration = (serviceRow[0] && serviceRow[0].duration_minutes) || 30;
-      let totalSlots = 0;
+      const intervalsByDentist = [];
       for (const { dentist_id } of dentistsOnShift) {
-        const [booked] = await pool.query(
-          `SELECT COUNT(*) AS c FROM appointments
-           WHERE dentist_id = ? AND shift_id = ? AND DATE(appointment_time) = ?
-             AND status NOT IN ('canceled','no_show')`,
-          [dentist_id, sh.id, date]
-        );
-        const maxPer = sh.max_appointments_per_dentist || 10;
-        totalSlots += Math.max(0, maxPer - (booked[0].c || 0));
+        intervalsByDentist.push(await getBookedIntervals(pool, dentist_id, sh.id, date));
       }
+      const totalSlots = dentistId
+        ? countAvailableSlotsInShift(
+            sh.start_time,
+            sh.end_time,
+            duration,
+            intervalsByDentist[0] || []
+          )
+        : countShiftSlotsWithAnyDentist(
+            sh.start_time,
+            sh.end_time,
+            duration,
+            intervalsByDentist
+          );
+      if (totalSlots <= 0) continue;
       result.push({
         id: sh.id,
         name: sh.name,
         start_time: sh.start_time,
         end_time: sh.end_time,
         slots_left: totalSlots,
+        duration_minutes: duration,
         is_full: totalSlots <= 0,
       });
     }
@@ -309,24 +415,30 @@ async function getDentistsForBooking(req, res) {
        ORDER BY u.full_name ASC`,
       [serviceId, shiftId, date]
     );
-    const [shiftRow] = await pool.query(
-      'SELECT max_appointments_per_dentist FROM shifts WHERE id = ? LIMIT 1',
+    const [[shiftRow]] = await pool.query(
+      'SELECT start_time, end_time FROM shifts WHERE id = ? AND is_active = 1 LIMIT 1',
       [shiftId]
     );
-    const maxPer = (shiftRow[0] && shiftRow[0].max_appointments_per_dentist) || 10;
+    const [[serviceRow]] = await pool.query(
+      'SELECT duration_minutes FROM services WHERE id = ? LIMIT 1',
+      [serviceId]
+    );
+    const duration = (serviceRow && serviceRow.duration_minutes) || 30;
     const withSlots = await Promise.all(
       (list || []).map(async (d) => {
-        const [booked] = await pool.query(
-          `SELECT COUNT(*) AS c FROM appointments
-           WHERE dentist_id = ? AND shift_id = ? AND DATE(appointment_time) = ?
-             AND status NOT IN ('canceled','no_show')`,
-          [d.id, shiftId, date]
-        );
-        const slotsLeft = Math.max(0, maxPer - (booked[0].c || 0));
+        const bookedIntervals = await getBookedIntervals(pool, d.id, shiftId, date);
+        const slotsLeft = shiftRow
+          ? countAvailableSlotsInShift(
+              shiftRow.start_time,
+              shiftRow.end_time,
+              duration,
+              bookedIntervals
+            )
+          : 0;
         return { ...d, slots_left: slotsLeft };
       })
     );
-    res.json(withSlots);
+    res.json(withSlots.filter((d) => d.slots_left > 0));
   } catch (err) {
     if (err && err.code === 'ER_NO_SUCH_TABLE') {
       return res.json([]);
@@ -378,34 +490,8 @@ async function getSlotsForBooking(req, res) {
       [serviceId]
     );
     const duration = (svc && svc.duration_minutes) || 30;
-    const [booked] = await pool.query(
-      `SELECT appointment_time FROM appointments
-       WHERE dentist_id = ? AND shift_id = ? AND DATE(appointment_time) = ?
-         AND status NOT IN ('canceled','no_show')`,
-      [dentistId, shiftId, date]
-    );
-    const bookedSet = new Set(
-      (booked || []).map((r) => {
-        const t = r.appointment_time;
-        return t instanceof Date ? t.toISOString().slice(11, 16) : String(t).slice(11, 16);
-      })
-    );
-    const start = String(shift.start_time).slice(0, 5);
-    const end = String(shift.end_time).slice(0, 5);
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    let current = sh * 60 + sm;
-    const endMin = eh * 60 + em;
-    const slots = [];
-    while (current + duration <= endMin) {
-      const h = Math.floor(current / 60);
-      const m = current % 60;
-      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      if (!bookedSet.has(timeStr)) {
-        slots.push(timeStr);
-      }
-      current += duration;
-    }
+    const bookedIntervals = await getBookedIntervals(pool, dentistId, shiftId, date);
+    const slots = listAvailableSlotTimes(shift.start_time, shift.end_time, duration, bookedIntervals);
     res.json({ slots });
   } catch (err) {
     if (err && err.code === 'ER_NO_SUCH_TABLE') {
@@ -449,6 +535,10 @@ async function createAppointment(req, res) {
   if (!finalPhone) {
     return res.status(400).json({ message: 'Vui lòng nhập số điện thoại' });
   }
+  finalPhone = normalizePhoneInput(finalPhone);
+  if (!finalPhone) {
+    return res.status(400).json({ message: 'Số điện thoại không hợp lệ' });
+  }
 
   const conn = await pool.getConnection();
   try {
@@ -467,6 +557,8 @@ async function createAppointment(req, res) {
     const workDate = apptDateTime.slice(0, 10);
     const shiftIdNum = shift_id ? Number(shift_id) : null;
     let dentistIdFinal = dentist_id ? Number(dentist_id) : null;
+    const newStartMin = parseAppointmentStartMinutes(apptDateTime);
+    const duration = service.duration_minutes || 30;
 
     if (shiftIdNum) {
       const [[shift]] = await conn.query(
@@ -494,20 +586,17 @@ async function createAppointment(req, res) {
           await conn.rollback();
           return res.status(400).json({ message: 'Bác sĩ không trực ca này trong ngày đã chọn' });
         }
-        const [booked] = await conn.query(
-          `SELECT COUNT(*) AS c FROM appointments
-           WHERE dentist_id = ? AND shift_id = ? AND DATE(appointment_time) = ?
-             AND status NOT IN ('canceled','no_show')`,
-          [dentistIdFinal, shiftIdNum, workDate]
+        const bookedIntervals = await getBookedIntervals(
+          conn,
+          dentistIdFinal,
+          shiftIdNum,
+          workDate
         );
-        const [[shiftRow]] = await conn.query(
-          'SELECT max_appointments_per_dentist FROM shifts WHERE id = ? LIMIT 1',
-          [shiftIdNum]
-        );
-        const maxPer = (shiftRow && shiftRow.max_appointments_per_dentist) || 10;
-        if ((booked[0].c || 0) >= maxPer) {
+        if (slotOverlapsBooked(newStartMin, duration, bookedIntervals)) {
           await conn.rollback();
-          return res.status(400).json({ message: 'Ca này đã đủ số lượng đặt với bác sĩ đã chọn' });
+          return res.status(400).json({
+            message: 'Khung giờ này trùng với lịch hẹn khác của bác sĩ',
+          });
         }
       } else {
         const [candidates] = await conn.query(
@@ -518,42 +607,31 @@ async function createAppointment(req, res) {
         );
         let picked = null;
         for (const c of candidates) {
-          const [booked] = await conn.query(
-            `SELECT COUNT(*) AS cnt FROM appointments
-             WHERE dentist_id = ? AND shift_id = ? AND DATE(appointment_time) = ?
-               AND status NOT IN ('canceled','no_show')`,
-            [c.dentist_id, shiftIdNum, workDate]
+          const bookedIntervals = await getBookedIntervals(
+            conn,
+            c.dentist_id,
+            shiftIdNum,
+            workDate
           );
-          const [[shiftRow]] = await conn.query(
-            'SELECT max_appointments_per_dentist FROM shifts WHERE id = ? LIMIT 1',
-            [shiftIdNum]
-          );
-          const maxPer = (shiftRow && shiftRow.max_appointments_per_dentist) || 10;
-          if ((booked[0].cnt || 0) < maxPer) {
+          if (!slotOverlapsBooked(newStartMin, duration, bookedIntervals)) {
             picked = c.dentist_id;
             break;
           }
         }
         if (!picked) {
           await conn.rollback();
-          return res.status(400).json({ message: 'Không còn slot trống trong ca này' });
+          return res.status(400).json({ message: 'Không còn khung giờ trống trong ca này' });
         }
         dentistIdFinal = picked;
       }
     }
 
-    const [existing] = await conn.query(
-      'SELECT id FROM patients WHERE phone = ? LIMIT 1',
-      [finalPhone]
-    );
+    const [existingRows] = await conn.query('SELECT id, phone FROM patients');
+    const existing = existingRows.find((row) => phonesMatch(row.phone, finalPhone));
 
     let patientId;
-    if (existing.length) {
-      patientId = existing[0].id;
-      await conn.query(
-        'UPDATE patients SET full_name = ?, email = ?, note = ? WHERE id = ?',
-        [finalName, finalEmail || null, note || null, patientId]
-      );
+    if (existing) {
+      patientId = existing.id;
     } else {
       const [result] = await conn.query(
         'INSERT INTO patients (full_name, phone, email, note) VALUES (?, ?, ?, ?)',
@@ -597,6 +675,11 @@ async function getAppointmentStatus(req, res) {
     return res.status(400).json({ message: 'Thiếu SĐT hoặc mã lịch hẹn' });
   }
 
+  const normalizedPhone = normalizePhoneInput(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({ message: 'Số điện thoại không hợp lệ' });
+  }
+
   try {
     const [rows] = await pool.query(
       `SELECT a.id, a.status, a.appointment_time, 
@@ -608,12 +691,12 @@ async function getAppointmentStatus(req, res) {
        LEFT JOIN services s ON a.service_id = s.id
        LEFT JOIN dentists d ON a.dentist_id = d.id
        LEFT JOIN users u ON d.user_id = u.id
-       WHERE a.id = ? AND p.phone = ?
+       WHERE a.id = ?
        LIMIT 1`,
-      [id, phone]
+      [id]
     );
 
-    if (!rows.length) {
+    if (!rows.length || !phonesMatch(rows[0].phone, normalizedPhone)) {
       return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     }
 
@@ -702,6 +785,7 @@ async function submitAppointmentRating(req, res) {
 module.exports = {
   getServices,
   getDentists,
+  getDentistsByDepartment,
   getDentistById,
   getAvailableDates,
   getShiftsForDate,

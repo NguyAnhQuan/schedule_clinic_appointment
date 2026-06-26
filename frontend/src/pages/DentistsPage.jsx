@@ -2,11 +2,16 @@ import { useEffect, useState } from 'react';
 import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
+import Pagination from '../components/Pagination';
+
+const PAGE_SIZE = 9;
 
 function DentistsPage() {
   const [dentists, setDentists] = useState([]);
   const [q, setQ] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [detailId, setDetailId] = useState(null);
@@ -26,32 +31,29 @@ function DentistsPage() {
   function loadDentists(params = {}) {
     setLoading(true);
     setError('');
-    PublicApi.getDentists(params)
-      .then((data) => setDentists(data))
+    PublicApi.getDentists({ page, limit: PAGE_SIZE, ...params })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setDentists(data);
+          setPagination({ total: data.length, limit: PAGE_SIZE });
+        } else {
+          setDentists(data.data || []);
+          setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
+        }
+      })
       .catch((err) => setError(err.message || 'Không tải được danh sách bác sĩ'))
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
-    let cancelled = false;
-    PublicApi.getDentists()
-      .then((data) => {
-        if (!cancelled) setDentists(data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message || 'Không tải được danh sách bác sĩ');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    loadDentists({ q, specialty });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   function handleSearch(e) {
     e.preventDefault();
-    loadDentists({ q, specialty });
+    setPage(1);
+    loadDentists({ q, specialty, page: 1 });
   }
 
   useEffect(() => {
@@ -116,15 +118,18 @@ function DentistsPage() {
               <select
                 value={specialty}
                 onChange={(e) => {
-                  setSpecialty(e.target.value);
-                  loadDentists({ q, specialty: e.target.value });
+                  const next = e.target.value;
+                  setSpecialty(next);
+                  setPage(1);
+                  loadDentists({ q, specialty: next, page: 1 });
                 }}
                 className="w-full rounded-button border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">Tất cả</option>
-                <option value="Tổng quát">Tổng quát</option>
-                <option value="Thẩm mỹ">Thẩm mỹ</option>
+                <option value="Nha khoa tổng quát">Nha khoa tổng quát</option>
                 <option value="Chỉnh nha">Chỉnh nha</option>
+                <option value="Thẩm mỹ">Thẩm mỹ nha khoa</option>
+                <option value="Phẫu thuật">Phẫu thuật hàm mặt</option>
               </select>
             </div>
           </form>
@@ -196,6 +201,12 @@ function DentistsPage() {
                 </article>
               ))}
           </div>
+          <Pagination
+            page={page}
+            total={pagination.total}
+            limit={pagination.limit || PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </section>
 
         {/* Modal chi tiết bác sĩ */}

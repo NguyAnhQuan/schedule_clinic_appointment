@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, FILE_BASE } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import Pagination from '../../components/Pagination';
+
+const PAGE_SIZE = 20;
 
 function AdminServicesConfigPage() {
   const navigate = useNavigate();
@@ -23,17 +26,42 @@ function AdminServicesConfigPage() {
   const [uploadingImageId, setUploadingImageId] = useState(null);
   const [editService, setEditService] = useState(null);
   const [deleteServiceId, setDeleteServiceId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
+  const [loading, setLoading] = useState(true);
+
+  async function loadServices(params = {}) {
+    setLoading(true);
+    try {
+      const data = await AdminApi.getServicesConfig({ page, limit: PAGE_SIZE, ...params });
+      if (Array.isArray(data)) {
+        setItems(data);
+        setPagination({ total: data.length, limit: PAGE_SIZE });
+      } else {
+        setItems(data.data || []);
+        setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
+        if (data.pagination?.page) setPage(data.pagination.page);
+      }
+    } catch (err) {
+      setError(err.message || 'Không tải được danh sách dịch vụ');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handlePageChange(nextPage) {
+    setPage(nextPage);
+    loadServices({ page: nextPage });
+  }
 
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
       return;
     }
-    AdminApi.getServicesConfig()
-      .then(setItems)
-      .catch((err) => setError(err.message || 'Không tải được danh sách dịch vụ'));
+    loadServices();
     AdminApi.getDentists()
-      .then((data) => setDentists(Array.isArray(data) ? data : []))
+      .then((data) => setDentists(Array.isArray(data) ? data : data.data || []))
       .catch(() => setDentists([]));
   }, [navigate]);
 
@@ -62,9 +90,7 @@ function AdminServicesConfigPage() {
         thumbnail_url: '',
         dentist_ids: [],
       });
-      AdminApi.getServicesConfig()
-        .then(setItems)
-        .catch((err) => setError(err.message || 'Không tải được danh sách dịch vụ'));
+      loadServices();
     } catch (err) {
       setError(err.message || 'Tạo dịch vụ thất bại');
     } finally {
@@ -235,6 +261,12 @@ function AdminServicesConfigPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            page={page}
+            total={pagination.total}
+            limit={pagination.limit || PAGE_SIZE}
+            onPageChange={handlePageChange}
+          />
         </div>
 
       </div>
@@ -257,9 +289,7 @@ function AdminServicesConfigPage() {
                   dentist_ids: editService.dentist_ids || [],
                 });
                 setEditService(null);
-                AdminApi.getServicesConfig()
-                  .then(setItems)
-                  .catch((err) => setError(err.message || 'Không tải được danh sách dịch vụ'));
+                loadServices();
               } catch (err) {
                 setError(err.message || 'Lưu dịch vụ thất bại');
               } finally {
@@ -641,11 +671,7 @@ function AdminServicesConfigPage() {
                   try {
                     await AdminApi.deleteService(deleteServiceId);
                     setDeleteServiceId(null);
-                    AdminApi.getServicesConfig()
-                      .then(setItems)
-                      .catch((err) =>
-                        setError(err.message || 'Không tải được danh sách dịch vụ')
-                      );
+                    loadServices();
                   } catch (err) {
                     alert(err.message || 'Xoá dịch vụ thất bại');
                   }

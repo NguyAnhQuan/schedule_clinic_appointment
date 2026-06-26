@@ -2,41 +2,43 @@ import { useEffect, useState } from 'react';
 import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
+import Pagination from '../components/Pagination';
 
-function inferCategory(name) {
-  const lower = (name || '').toLowerCase();
-  if (lower.includes('tổng quát') || lower.includes('khám')) return 'general';
-  if (lower.includes('tẩy trắng') || lower.includes('thẩm mỹ')) return 'aesthetic';
-  if (lower.includes('nhổ') || lower.includes('tiểu phẫu') || lower.includes('phẫu')) return 'surgery';
-  return 'other';
-}
+const PAGE_SIZE = 8;
 
 function ServicesPage() {
   const [services, setServices] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let mounted = true;
-    PublicApi.getServices()
+    setLoading(true);
+    setError('');
+    PublicApi.getServices({ page, limit: PAGE_SIZE, category: activeFilter })
       .then((data) => {
-        if (mounted) {
-          const withCategory = data.map((s) => ({
-            ...s,
-            category: inferCategory(s.name),
-          }));
-          setServices(withCategory);
+        if (!mounted) return;
+        if (Array.isArray(data)) {
+          setServices(data);
+          setPagination({ total: data.length, limit: PAGE_SIZE });
+        } else {
+          setServices(data.data || []);
+          setPagination(data.pagination || { total: 0, limit: PAGE_SIZE });
         }
       })
       .catch((err) => {
-        setError(err.message || 'Không tải được danh sách dịch vụ');
+        if (mounted) setError(err.message || 'Không tải được danh sách dịch vụ');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [page, activeFilter]);
 
   const filters = [
     { id: 'all', label: 'Tất cả' },
@@ -45,17 +47,16 @@ function ServicesPage() {
     { id: 'surgery', label: 'Phẫu thuật' },
   ];
 
-  const displayedServices =
-    activeFilter === 'all'
-      ? services
-      : services.filter((s) => s.category === activeFilter);
+  function handleFilterChange(filterId) {
+    setActiveFilter(filterId);
+    setPage(1);
+  }
 
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar />
 
       <main className="flex-1">
-        {/* Header giống thiết kế services_overview */}
         <section className="bg-white border-b border-slate-100 py-10">
           <div className="mx-auto max-w-6xl px-4 lg:px-8 text-center space-y-4">
             <span className="inline-block py-1 px-3 rounded-full bg-primary/10 text-primary text-[11px] font-semibold uppercase tracking-wide">
@@ -77,7 +78,7 @@ function ServicesPage() {
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setActiveFilter(f.id)}
+                onClick={() => handleFilterChange(f.id)}
                 className={`rounded-full border px-4 py-1.5 text-xs font-medium transition ${
                   activeFilter === f.id
                     ? 'border-primary bg-primary/10 text-primary'
@@ -100,12 +101,11 @@ function ServicesPage() {
             )}
             {!loading &&
               !error &&
-              displayedServices.map((s) => (
+              services.map((s) => (
                 <article
                   key={s.id}
                   className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-primary/40 transition"
                 >
-                  {/* Ảnh dịch vụ: kích thước cố định (cùng tỷ lệ cho mọi thẻ) */}
                   <div className="w-full h-44 bg-slate-100 flex items-center justify-center overflow-hidden shrink-0">
                     {s.thumbnail_url ? (
                       <img
@@ -145,6 +145,13 @@ function ServicesPage() {
                 </article>
               ))}
           </div>
+
+          <Pagination
+            page={page}
+            total={pagination.total}
+            limit={pagination.limit || PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </section>
       </main>
 
@@ -154,4 +161,3 @@ function ServicesPage() {
 }
 
 export default ServicesPage;
-
