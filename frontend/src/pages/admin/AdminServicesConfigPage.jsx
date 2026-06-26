@@ -11,9 +11,19 @@ const PAGE_SIZE = 20;
 
 function AdminServicesConfigPage() {
   const navigate = useNavigate();
+
+  // --- Danh sách dịch vụ & phân trang ---
   const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // --- Trạng thái lưu / upload ảnh ---
   const [savingId, setSavingId] = useState(null);
+  const [uploadingImageId, setUploadingImageId] = useState(null);
+
+  // --- Modal tạo dịch vụ mới ---
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newService, setNewService] = useState({
@@ -25,14 +35,18 @@ function AdminServicesConfigPage() {
     thumbnail_url: '',
     dentist_ids: [],
   });
-  const [dentists, setDentists] = useState([]);
-  const [uploadingImageId, setUploadingImageId] = useState(null);
+
+  // --- Modal sửa & xoá dịch vụ ---
   const [editService, setEditService] = useState(null);
   const [deleteServiceId, setDeleteServiceId] = useState(null);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
-  const [loading, setLoading] = useState(true);
 
+  // --- Dropdown bác sĩ (gắn dịch vụ ↔ bác sĩ thực hiện) ---
+  const [dentists, setDentists] = useState([]);
+
+  /**
+   * Tải danh sách dịch vụ cấu hình có phân trang.
+   * @param {object} [params={}]
+   */
   async function loadServices(params = {}) {
     setLoading(true);
     try {
@@ -52,11 +66,13 @@ function AdminServicesConfigPage() {
     }
   }
 
+  /** Đổi trang phân trang. */
   function handlePageChange(nextPage) {
     setPage(nextPage);
     loadServices({ page: nextPage });
   }
 
+  // --- Mount: kiểm tra token, tải dịch vụ & preload danh sách bác sĩ ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -68,11 +84,17 @@ function AdminServicesConfigPage() {
       .catch(() => setDentists([]));
   }, [navigate]);
 
+  /**
+   * Ghép URL ảnh thumbnail (hỗ trợ path tương đối hoặc URL đầy đủ).
+   * @param {string} url
+   * @returns {string}
+   */
   function mediaUrl(url) {
     if (!url) return '';
     return url.startsWith('http') ? url : `${FILE_BASE}${url.startsWith('/') ? url : `/${url}`}`;
   }
 
+  /** Tạo dịch vụ mới kèm gắn bác sĩ thực hiện. */
   async function handleCreate(e) {
     e.preventDefault();
     setCreating(true);
@@ -101,6 +123,11 @@ function AdminServicesConfigPage() {
     }
   }
 
+  /**
+   * Upload ảnh dịch vụ; serviceId = null khi đang tạo mới ('new' trong uploadingImageId).
+   * @param {File} file
+   * @param {number|null} serviceId
+   */
   async function handleServiceImageUpload(file, serviceId) {
     if (!file) return;
     setUploadingImageId(serviceId || 'new');
@@ -127,7 +154,7 @@ function AdminServicesConfigPage() {
   return (
     <AdminLayout active="services" title="Service Configuration">
       <div className="space-y-6 text-xs">
-        {/* Header giống thiết kế clinic_service_configuration */}
+        {/* --- Breadcrumb + tiêu đề + nút thêm dịch vụ --- */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center text-[11px] text-slate-500 gap-1 mb-1">
@@ -156,7 +183,7 @@ function AdminServicesConfigPage() {
           </div>
         )}
 
-        {/* Bảng cấu hình dịch vụ – style sát thiết kế */}
+        {/* --- Bảng cấu hình dịch vụ (ảnh, giá, BS gắn, trạng thái) --- */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">

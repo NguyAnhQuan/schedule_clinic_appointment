@@ -6,6 +6,13 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+/**
+ * Tạo cấu hình lưu trữ disk của Multer cho một thư mục con trong `uploads/`.
+ * Tự tạo thư mục nếu chưa có; tên file = tên gốc (slug) + timestamp để tránh trùng.
+ *
+ * @param {string} folder - Tên thư mục con, ví dụ `'avatars'`, `'services'`, `'clinic'`.
+ * @returns {import('multer').StorageEngine} Engine lưu file vào `backend/uploads/<folder>/`.
+ */
 function makeStorage(folder) {
   return multer.diskStorage({
     destination(req, file, cb) {
@@ -37,9 +44,18 @@ const clinicUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+/** Middleware Multer: nhận một file field `file`, lưu avatar (tối đa 5MB) vào `uploads/avatars/`. */
+const uploadAvatar = avatarUpload.single('file');
+
+/** Middleware Multer: nhận một file field `file`, lưu ảnh dịch vụ (tối đa 5MB) vào `uploads/services/`. */
+const uploadServiceImage = serviceUpload.single('file');
+
+/** Middleware Multer: nhận một file field `file`, lưu logo phòng khám (tối đa 5MB) vào `uploads/clinic/`. */
+const uploadClinicLogo = clinicUpload.single('file');
+
 module.exports = {
-  uploadAvatar: avatarUpload.single('file'),
-  uploadServiceImage: serviceUpload.single('file'),
-  uploadClinicLogo: clinicUpload.single('file'),
+  uploadAvatar,
+  uploadServiceImage,
+  uploadClinicLogo,
 };
 

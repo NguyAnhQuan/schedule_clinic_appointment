@@ -48,13 +48,21 @@ app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 4100;
 
+/**
+ * start — Khởi động server: init DB trước, sau đó lắng nghe HTTP.
+ * Logic: Gọi initDatabase() (tạo bảng, seed, expire lịch cũ). Thành công → app.listen.
+ * Thất bại → log lỗi và exit(1) để process manager (pm2/docker) có thể restart.
+ */
 async function start() {
   try {
+    // initDatabase: kết nối MySQL, CREATE TABLE IF NOT EXISTS, chèn dữ liệu mẫu nếu trống,
+    // chạy expirePastAppointments — phải xong trước khi nhận request để schema/data nhất quán
     await initDatabase();
     app.listen(PORT, () => {
       console.log(`Backend listening on port ${PORT}`);
     });
   } catch (err) {
+    // Lỗi kết nối DB, migration hoặc seed — không listen để tránh API trả lỗi 500 hàng loạt
     console.error('Failed to initialize database', err);
     process.exit(1);
   }

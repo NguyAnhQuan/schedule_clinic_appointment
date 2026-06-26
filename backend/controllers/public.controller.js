@@ -23,6 +23,15 @@ const {
   listAvailableSlotTimes,
 } = require('../utils/appointmentSlots');
 
+/**
+ * formatDateKey — Chuẩn hóa giá trị ngày thành chuỗi YYYY-MM-DD
+ * @param {Date|string|null|undefined} value - Giá trị ngày từ DB (Date object hoặc chuỗi ISO)
+ * Logic:
+ *   1. Trả về chuỗi rỗng nếu value falsy
+ *   2. Nếu là Date: lấy năm/tháng/ngày, pad 2 chữ số cho tháng và ngày
+ *   3. Nếu là chuỗi: cắt 10 ký tự đầu (phần ngày)
+ * Trả về: Chuỗi 'YYYY-MM-DD' hoặc '' nếu không có giá trị
+ */
 function formatDateKey(value) {
   if (!value) return '';
   if (value instanceof Date) {
@@ -34,6 +43,15 @@ function formatDateKey(value) {
   return String(value).slice(0, 10);
 }
 
+/**
+ * inferServiceCategory — Suy luận nhóm dịch vụ từ tên dịch vụ
+ * @param {string} name - Tên dịch vụ (tiếng Việt hoặc tiếng Anh)
+ * Logic:
+ *   1. Chuyển tên về chữ thường để so khớp từ khóa
+ *   2. Khớp từ khóa tổng quát → 'general', thẩm mỹ → 'aesthetic', phẫu thuật → 'surgery'
+ *   3. Không khớp → 'other'
+ * Trả về: 'general' | 'aesthetic' | 'surgery' | 'other'
+ */
 function inferServiceCategory(name) {
   const lower = String(name || '').toLowerCase();
   if (lower.includes('tổng quát') || lower.includes('khám') || lower.includes('cạo')) return 'general';
@@ -42,6 +60,15 @@ function inferServiceCategory(name) {
   return 'other';
 }
 
+/**
+ * attachDentistIdsToServices — Gắn danh sách bác sĩ và nhóm dịch vụ vào từng dịch vụ
+ * @param {Array<Object>} rows - Mảng dịch vụ từ bảng services
+ * Logic:
+ *   1. Query bảng service_dentists để lấy liên kết service_id ↔ dentist_id
+ *   2. Nhóm dentist_id theo service_id vào object byService
+ *   3. Map mỗi dịch vụ: thêm dentist_ids và category (qua inferServiceCategory)
+ * Trả về: Mảng dịch vụ đã bổ sung dentist_ids và category
+ */
 async function attachDentistIdsToServices(rows) {
   const [links] = await pool.query('SELECT service_id, dentist_id FROM service_dentists');
   const byService = {};
@@ -58,6 +85,18 @@ async function attachDentistIdsToServices(rows) {
   }));
 }
 
+/**
+ * getServices — API danh sách dịch vụ đang hoạt động (có lọc nhóm, phân trang)
+ * @param {import('express').Request} req - Query: page, limit, category
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Lấy tất cả dịch vụ is_active = 1
+ *   2. Gắn dentist_ids và category qua attachDentistIdsToServices
+ *   3. Lọc theo category nếu có (bỏ qua khi category = 'all')
+ *   4. Nếu có page: slice phân trang (limit tối đa 50), trả { data, pagination }
+ *   5. Không có page: trả mảng đầy đủ
+ * Trả về: JSON danh sách dịch vụ hoặc 500 khi lỗi
+ */
 async function getServices(req, res) {
   const { page, limit = 12, category } = req.query;
   try {
@@ -88,6 +127,15 @@ async function getServices(req, res) {
   }
 }
 
+/**
+ * buildDentistsBaseSql — Tạo câu SQL SELECT cơ sở cho danh sách bác sĩ
+ * @param {boolean} [withRatings=true] - Có JOIN bảng đánh giá hay không
+ * Logic:
+ *   1. withRatings = true: JOIN subquery tính avg_rating, rating_count từ appointment_ratings
+ *   2. withRatings = false: trả 0 cho avg_rating và rating_count (fallback khi thiếu bảng)
+ *   3. Luôn JOIN users (role = 'dentist') và lọc d.is_active = 1
+ * Trả về: Chuỗi SQL SELECT (chưa có WHERE bổ sung, ORDER BY, LIMIT)
+ */
 function buildDentistsBaseSql(withRatings = true) {
   if (withRatings) {
     return `
@@ -119,6 +167,20 @@ function buildDentistsBaseSql(withRatings = true) {
   `;
 }
 
+/**
+ * appendDentistFilters — Nối điều kiện lọc vào câu SQL bác sĩ
+ * @param {string} sql - Câu SQL gốc
+ * @param {Array} params - Mảng tham số bind (mutate in-place)
+ * @param {Object} filters - Bộ lọc: q, specialty, service_id
+ * @param {string} [filters.q] - Từ khóa tìm theo tên hoặc email
+ * @param {string} [filters.specialty] - Lọc theo chuyên khoa (LIKE)
+ * @param {number|string} [filters.service_id] - Chỉ BS thực hiện được dịch vụ này
+ * Logic:
+ *   1. q → AND (full_name LIKE ? OR email LIKE ?)
+ *   2. specialty → AND specialty LIKE ?
+ *   3. service_id → AND id IN (SELECT dentist_id FROM service_dentists ...)
+ * Trả về: Chuỗi SQL đã nối thêm điều kiện
+ */
 function appendDentistFilters(sql, params, { q, specialty, service_id }) {
   let next = sql;
   if (q) {
@@ -137,6 +199,18 @@ function appendDentistFilters(sql, params, { q, specialty, service_id }) {
   return next;
 }
 
+/**
+ * queryDentists — Truy vấn DB lấy danh sách bác sĩ (có/không phân trang)
+ * @param {Object} filters - Bộ lọc truyền cho appendDentistFilters
+ * @param {Object} [options] - Tùy chọn phân trang
+ * @param {number|string} [options.page] - Số trang (nếu có thì bật phân trang)
+ * @param {number|string} [options.limit] - Số bản ghi/trang (mặc định 9, tối đa 50)
+ * Logic:
+ *   1. Ghép SQL base + filter + ORDER BY specialty, full_name
+ *   2. Có page: chạy COUNT riêng, rồi SELECT LIMIT/OFFSET
+ *   3. Không page: SELECT toàn bộ
+ * Trả về: { rows, pagination } — pagination = null khi không phân trang
+ */
 async function queryDentists(filters, { page, limit } = {}) {
   const params = [];
   let sql = appendDentistFilters(buildDentistsBaseSql(true), params, filters);
@@ -163,6 +237,16 @@ async function queryDentists(filters, { page, limit } = {}) {
   return { rows, pagination: null };
 }
 
+/**
+ * getDentists — API danh sách bác sĩ (lọc + phân trang)
+ * @param {import('express').Request} req - Query: q, specialty, service_id, page, limit
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Gọi queryDentists với bộ lọc từ query string
+ *   2. Có pagination → trả { data, pagination }; không → trả mảng rows
+ *   3. Fallback: nếu lỗi ER_NO_SUCH_TABLE (thiếu bảng rating), chạy lại không JOIN rating
+ * Trả về: JSON danh sách bác sĩ hoặc 500 khi lỗi
+ */
 async function getDentists(req, res) {
   const { q, specialty, service_id, page, limit } = req.query;
   try {
@@ -205,6 +289,16 @@ async function getDentists(req, res) {
   }
 }
 
+/**
+ * getDentistsByDepartment — API nhóm bác sĩ theo chuyên khoa (cho trang chủ)
+ * @param {import('express').Request} req - Query: per_department (mặc định 3, tối đa 10)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Lấy toàn bộ bác sĩ qua queryDentists (không lọc, không phân trang)
+ *   2. Nhóm theo specialty (mặc định 'Khác' nếu trống)
+ *   3. Mỗi nhóm giữ tối đa per_department bác sĩ
+ * Trả về: JSON { departments: [{ specialty, dentists }] }
+ */
 async function getDentistsByDepartment(req, res) {
   const perDept = Math.min(10, Math.max(1, Number(req.query.per_department) || 3));
   try {
@@ -227,6 +321,18 @@ async function getDentistsByDepartment(req, res) {
   }
 }
 
+/**
+ * getDentistById — API chi tiết một bác sĩ (dịch vụ, đánh giá, review)
+ * @param {import('express').Request} req - Params: id (dentist_id)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. SELECT bác sĩ active kèm thông tin user
+ *   2. Không tìm thấy → 404
+ *   3. Lấy danh sách dịch vụ BS thực hiện từ service_dentists
+ *   4. Lấy avg_rating, rating_count và tối đa 50 review gần nhất
+ *   5. Bỏ qua lỗi thiếu bảng appointment_ratings (giữ rating = 0)
+ * Trả về: JSON hồ sơ bác sĩ đầy đủ hoặc 404/500
+ */
 async function getDentistById(req, res) {
   const { id } = req.params;
   try {
@@ -290,7 +396,18 @@ async function getDentistById(req, res) {
   }
 }
 
-/** GET /available-dates?service_id= — Ngày có ít nhất 1 bác sĩ trực làm được dịch vụ */
+/**
+ * getAvailableDates — API danh sách ngày có thể đặt lịch cho dịch vụ
+ * @param {import('express').Request} req - Query: service_id (bắt buộc), dentist_id (tùy chọn)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Validate service_id
+ *   2. Tìm ngày DISTINCT từ staff_shifts: BS active, làm được dịch vụ, ca active, status = assigned
+ *   3. Giới hạn từ hôm nay đến +60 ngày, tối đa 30 ngày trả về
+ *   4. dentist_id (nếu có): chỉ ngày BS đó trực
+ *   5. formatDateKey chuẩn hóa từng ngày
+ * Trả về: JSON { dates: string[] } hoặc 400/500
+ */
 async function getAvailableDates(req, res) {
   const serviceId = req.query.service_id;
   const dentistId = req.query.dentist_id;
@@ -331,7 +448,19 @@ async function getAvailableDates(req, res) {
   }
 }
 
-/** GET /shifts-for-date?service_id=&date= — Ca trong ngày (còn slot, có BS trực làm dịch vụ) */
+/**
+ * getShiftsForDate — API danh sách ca trong ngày còn slot trống
+ * @param {import('express').Request} req - Query: service_id, date (bắt buộc), dentist_id (tùy chọn)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Validate service_id và date
+ *   2. Lấy tất cả ca active, duyệt từng ca
+ *   3. Với mỗi ca: tìm BS trực ca đó, làm được dịch vụ, status = assigned
+ *   4. Không có BS → bỏ qua ca
+ *   5. Tính slots_left: 1 BS cụ thể → countAvailableSlotsInShift; nhiều BS → countShiftSlotsWithAnyDentist
+ *   6. Chỉ trả ca có slots_left > 0
+ * Trả về: JSON mảng ca kèm slots_left, duration_minutes hoặc 400/500
+ */
 async function getShiftsForDate(req, res) {
   const { service_id: serviceId, date, dentist_id: dentistIdRaw } = req.query;
   const dentistId = dentistIdRaw ? Number(dentistIdRaw) : null;
@@ -348,6 +477,7 @@ async function getShiftsForDate(req, res) {
     const result = [];
     for (const sh of shifts || []) {
       const params = [serviceId, sh.id, date];
+      // Tìm bác sĩ được phân ca này trong ngày và thực hiện được dịch vụ
       let sql = `
         SELECT ss.dentist_id
         FROM staff_shifts ss
@@ -361,15 +491,20 @@ async function getShiftsForDate(req, res) {
       }
       const [dentistsOnShift] = await pool.query(sql, params);
       if (dentistsOnShift.length === 0) continue;
+
       const [serviceRow] = await pool.query(
         'SELECT duration_minutes FROM services WHERE id = ? LIMIT 1',
         [serviceId]
       );
       const duration = (serviceRow[0] && serviceRow[0].duration_minutes) || 30;
+
+      // Thu thập khoảng thời gian đã đặt của từng BS trong ca
       const intervalsByDentist = [];
       for (const { dentist_id } of dentistsOnShift) {
         intervalsByDentist.push(await getBookedIntervals(pool, dentist_id, sh.id, date));
       }
+
+      // Đã chọn BS cụ thể: đếm slot trống của BS đó; chưa chọn: gộp slot của mọi BS (mỗi slot chỉ cần 1 BS rảnh)
       const totalSlots = dentistId
         ? countAvailableSlotsInShift(
             sh.start_time,
@@ -384,6 +519,7 @@ async function getShiftsForDate(req, res) {
             intervalsByDentist
           );
       if (totalSlots <= 0) continue;
+
       result.push({
         id: sh.id,
         name: sh.name,
@@ -404,7 +540,17 @@ async function getShiftsForDate(req, res) {
   }
 }
 
-/** GET /dentists-for-booking?service_id=&shift_id=&date= — Bác sĩ trong ca (còn slot) */
+/**
+ * getDentistsForBooking — API bác sĩ trong ca còn slot để đặt lịch
+ * @param {import('express').Request} req - Query: service_id, shift_id, date (bắt buộc)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Validate đủ 3 tham số
+ *   2. Lấy BS trực ca, làm được dịch vụ, kèm rating
+ *   3. Với mỗi BS: tính slots_left qua getBookedIntervals + countAvailableSlotsInShift
+ *   4. Lọc chỉ BS có slots_left > 0
+ * Trả về: JSON mảng bác sĩ hoặc 400/500
+ */
 async function getDentistsForBooking(req, res) {
   const { service_id: serviceId, shift_id: shiftId, date } = req.query;
   if (!serviceId || !shiftId || !date) {
@@ -462,7 +608,18 @@ async function getDentistsForBooking(req, res) {
   }
 }
 
-/** GET /slots-for-booking?service_id=&dentist_id=&shift_id=&date= — Các giờ trống */
+/**
+ * getSlotsForBooking — API các khung giờ cụ thể còn trống trong ca
+ * @param {import('express').Request} req - Query: service_id, dentist_id, shift_id, date (bắt buộc)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Validate đủ 4 tham số
+ *   2. Kiểm tra BS active và thực hiện được dịch vụ
+ *   3. Kiểm tra BS có phân ca assigned trong ngày
+ *   4. Lấy start/end ca và duration dịch vụ
+ *   5. listAvailableSlotTimes tính các giờ trống (loại trừ lịch đã đặt)
+ * Trả về: JSON { slots: string[] } hoặc 400/500
+ */
 async function getSlotsForBooking(req, res) {
   const { service_id: serviceId, dentist_id: dentistId, shift_id: shiftId, date } = req.query;
   if (!serviceId || !dentistId || !shiftId || !date) {
@@ -516,6 +673,20 @@ async function getSlotsForBooking(req, res) {
   }
 }
 
+/**
+ * createAppointment — API tạo lịch hẹn mới (transaction)
+ * @param {import('express').Request} req - Body: full_name, phone, email, service_id, dentist_id, shift_id, appointment_time, note, use_account
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Gộp thông tin từ body hoặc req.user (khi use_account)
+ *   2. Validate họ tên, dịch vụ, thời gian, SĐT hợp lệ
+ *   3. BEGIN TRANSACTION
+ *   4. Kiểm tra dịch vụ active; parse appointment_time → workDate, newStartMin
+ *   5. Nếu có shift_id: validate ca, BS (hoặc auto-pick BS rảnh trong ca)
+ *   6. Tìm/tạo bệnh nhân theo SĐT (phonesMatch)
+ *   7. INSERT appointments status = 'pending', COMMIT
+ * Trả về: 201 { id, message } hoặc 400/500
+ */
 async function createAppointment(req, res) {
   const {
     full_name,
@@ -532,6 +703,7 @@ async function createAppointment(req, res) {
   let finalName = full_name;
   let finalPhone = phone;
   let finalEmail = email;
+  // Đăng nhập + use_account: ưu tiên thông tin từ tài khoản, fallback body
   if (req.user && use_account) {
     finalName = req.user.full_name || finalName;
     finalPhone = req.user.phone || finalPhone;
@@ -567,6 +739,7 @@ async function createAppointment(req, res) {
       return res.status(400).json({ message: 'Dịch vụ không tồn tại hoặc đã tắt' });
     }
 
+    // Chuẩn hóa datetime MySQL và tách ngày làm việc
     const apptDateTime = appointment_time.replace('T', ' ').slice(0, 19);
     const workDate = apptDateTime.slice(0, 10);
     const shiftIdNum = shift_id ? Number(shift_id) : null;
@@ -583,7 +756,9 @@ async function createAppointment(req, res) {
         await conn.rollback();
         return res.status(400).json({ message: 'Ca không tồn tại hoặc đã tắt' });
       }
+
       if (dentistIdFinal) {
+        // Khách đã chọn BS: kiểm tra BS làm dịch vụ, trực ca, và slot không trùng lịch
         const [sd] = await conn.query(
           'SELECT 1 FROM service_dentists WHERE service_id = ? AND dentist_id = ? LIMIT 1',
           [service_id, dentistIdFinal]
@@ -613,6 +788,7 @@ async function createAppointment(req, res) {
           });
         }
       } else {
+        // Chưa chọn BS: duyệt ứng viên trong ca, gán BS đầu tiên còn slot trống
         const [candidates] = await conn.query(
           `SELECT ss.dentist_id FROM staff_shifts ss
            JOIN service_dentists sd ON sd.dentist_id = ss.dentist_id AND sd.service_id = ?
@@ -640,6 +816,7 @@ async function createAppointment(req, res) {
       }
     }
 
+    // Tìm BN theo SĐT (so khớp linh hoạt); không có thì tạo mới
     const [existingRows] = await conn.query('SELECT id, phone FROM patients');
     const existing = existingRows.find((row) => phonesMatch(row.phone, finalPhone));
 
@@ -683,6 +860,17 @@ async function createAppointment(req, res) {
   }
 }
 
+/**
+ * getAppointmentStatus — API tra cứu trạng thái lịch hẹn bằng SĐT + mã
+ * @param {import('express').Request} req - Query: phone, id (appointment_id)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Validate phone và id
+ *   2. Chuẩn hóa SĐT qua normalizePhoneInput
+ *   3. JOIN appointments, patients, services, dentists để lấy chi tiết
+ *   4. So khớp SĐT bằng phonesMatch — không khớp → 404 (bảo mật)
+ * Trả về: JSON thông tin lịch hẹn hoặc 400/404/500
+ */
 async function getAppointmentStatus(req, res) {
   const { phone, id } = req.query;
   if (!phone || !id) {
@@ -721,6 +909,15 @@ async function getAppointmentStatus(req, res) {
   }
 }
 
+/**
+ * getAppointmentRating — API lấy đánh giá đã gửi cho một lịch hẹn
+ * @param {import('express').Request} req - Params: id (appointment_id)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. SELECT từ appointment_ratings theo appointment_id
+ *   2. Chưa có đánh giá → trả null cho các trường
+ * Trả về: JSON { rating_stars, comment, created_at } hoặc 500
+ */
 async function getAppointmentRating(req, res) {
   const { id } = req.params;
   try {
@@ -741,6 +938,18 @@ async function getAppointmentRating(req, res) {
   }
 }
 
+/**
+ * submitAppointmentRating — API gửi/cập nhật đánh giá lịch hẹn đã hoàn thành
+ * @param {import('express').Request} req - Params: id; Body: stars (1-5), comment, phone (xác minh)
+ * @param {import('express').Response} res
+ * Logic:
+ *   1. Validate stars trong khoảng 1–5
+ *   2. Lấy lịch hẹn + SĐT bệnh nhân; không tồn tại → 404
+ *   3. Chỉ cho đánh giá khi status = 'completed'
+ *   4. Xác minh SĐT: body.phone hoặc req.user.phone phải khớp SĐT đặt lịch
+ *   5. INSERT hoặc UPDATE (ON DUPLICATE KEY) vào appointment_ratings
+ * Trả về: JSON { message } hoặc 400/403/404/500
+ */
 async function submitAppointmentRating(req, res) {
   const { id } = req.params;
   const { stars, comment, phone } = req.body || {};
@@ -810,4 +1019,3 @@ module.exports = {
   getAppointmentRating,
   submitAppointmentRating,
 };
-

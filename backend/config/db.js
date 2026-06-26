@@ -24,21 +24,54 @@ const pool = mysql.createPool({
   multipleStatements: true,
 });
 
+/**
+ * Chuyển đối tượng Date sang chuỗi ngày ISO (YYYY-MM-DD).
+ * Dùng khi ghi work_date vào DB hoặc so khớp ngày làm việc.
+ *
+ * @param {Date} d - Đối tượng ngày cần định dạng.
+ * @returns {string} Chuỗi ngày dạng 'YYYY-MM-DD'.
+ * @idempotent Có — cùng một Date cho cùng một kết quả (theo UTC của toISOString).
+ */
 function formatDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Cộng thêm số ngày vào một mốc thời gian, trả về Date mới (không sửa đối tượng gốc).
+ *
+ * @param {Date|string|number} base - Mốc thời gian ban đầu.
+ * @param {number} days - Số ngày cộng thêm (có thể âm để lùi ngày).
+ * @returns {Date} Đối tượng Date mới sau khi cộng ngày.
+ * @idempotent Có — cùng base và days luôn cho cùng kết quả.
+ */
 function addDays(base, days) {
   const d = new Date(base);
   d.setDate(d.getDate() + days);
   return d;
 }
 
+/**
+ * Tra cứu id người dùng theo email trong bảng users.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL đang dùng.
+ * @param {string} email - Email cần tìm (khóa logic của ensureUser).
+ * @returns {Promise<number|null>} id người dùng nếu tồn tại, ngược lại null.
+ * @idempotent Có — chỉ đọc, không thay đổi dữ liệu.
+ */
 async function getUserIdByEmail(connection, email) {
   const [rows] = await connection.query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
   return rows[0]?.id || null;
 }
 
+/**
+ * Đảm bảo tài khoản users tồn tại: tìm theo email, nếu chưa có thì INSERT.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {string} passwordHash - Mật khẩu đã băm (bcrypt).
+ * @param {{ full_name: string, phone: string, email: string, role: string, avatar_url?: string }} user - Thông tin tài khoản.
+ * @returns {Promise<number>} id người dùng (có sẵn hoặc vừa tạo).
+ * @idempotent Có — chạy lại với cùng email không tạo bản ghi trùng; không cập nhật user đã tồn tại.
+ */
 async function ensureUser(connection, passwordHash, user) {
   const existingId = await getUserIdByEmail(connection, user.email);
   if (existingId) return existingId;
@@ -57,6 +90,14 @@ async function ensureUser(connection, passwordHash, user) {
   return result.insertId;
 }
 
+/**
+ * Đảm bảo bệnh nhân tồn tại: tìm theo số điện thoại, nếu chưa có thì INSERT.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {{ full_name: string, phone: string, email?: string, note?: string, avatar_url?: string }} patient - Thông tin bệnh nhân.
+ * @returns {Promise<number>} id bệnh nhân (có sẵn hoặc vừa tạo).
+ * @idempotent Có — cùng phone không tạo bản ghi mới; không cập nhật bệnh nhân đã tồn tại.
+ */
 async function ensurePatient(connection, patient) {
   const [rows] = await connection.query('SELECT id FROM patients WHERE phone = ? LIMIT 1', [
     patient.phone,
@@ -76,6 +117,14 @@ async function ensurePatient(connection, patient) {
   return result.insertId;
 }
 
+/**
+ * Đảm bảo dịch vụ tồn tại theo tên: INSERT mới hoặc UPDATE mô tả/giá/thời lượng/ảnh nếu đã có.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {{ name: string, description: string, price: number, duration_minutes: number, thumbnail_url?: string }} service - Dữ liệu dịch vụ.
+ * @returns {Promise<number>} id dịch vụ.
+ * @idempotent Có theo name — không nhân đôi dòng; lần chạy sau có thể cập nhật các trường mô tả/giá.
+ */
 async function ensureService(connection, service) {
   const [rows] = await connection.query('SELECT id FROM services WHERE name = ? LIMIT 1', [
     service.name,
@@ -110,6 +159,15 @@ async function ensureService(connection, service) {
   return result.insertId;
 }
 
+/**
+ * Đảm bảo hồ sơ bác sĩ (dentists) gắn với user_id: INSERT hoặc UPDATE chuyên khoa/kinh nghiệm/mô tả.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {number} userId - id tài khoản users có role dentist.
+ * @param {{ specialty: string, experience_year: number, description: string, avatar_url?: string }} dentist - Thông tin chuyên môn.
+ * @returns {Promise<number>} id bác sĩ trong bảng dentists.
+ * @idempotent Có theo user_id — không tạo hai dentist cho một user; lần sau có thể cập nhật metadata.
+ */
 async function ensureDentist(connection, userId, dentist) {
   const [rows] = await connection.query('SELECT id FROM dentists WHERE user_id = ? LIMIT 1', [
     userId,
@@ -144,6 +202,16 @@ async function ensureDentist(connection, userId, dentist) {
   return result.insertId;
 }
 
+/**
+ * Gán bác sĩ cho từng dịch vụ demo theo quy tắc chuyên khoa (4 khoa × 6 dịch vụ).
+ * Ví dụ: tẩy trắng → Thẩm mỹ; nhổ khôn → Phẫu thuật + Tổng quát.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {number[]} serviceIds - Mảng 6 id dịch vụ theo thứ tự seed (khám, cạo vôi, tẩy trắng, trám, nhổ khôn, implant).
+ * @param {Record<string, number[]>} dentistsBySpecialty - Map chuyên khoa → danh sách dentist_id.
+ * @returns {Promise<void>}
+ * @idempotent Có — gọi linkServiceDentists (INSERT IGNORE), không tạo liên kết trùng.
+ */
 async function linkServicesByDepartments(connection, serviceIds, dentistsBySpecialty) {
   const general = dentistsBySpecialty['Nha khoa tổng quát'] || [];
   const ortho = dentistsBySpecialty['Chỉnh nha'] || [];
@@ -290,6 +358,15 @@ const DENTIST_DEPARTMENTS = [
   },
 ];
 
+/**
+ * Seed 12 bác sĩ demo (4 khoa × 3 người) từ DENTIST_DEPARTMENTS: tạo user + dentist cho từng bác sĩ.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {string} passwordHash - Mật khẩu bcrypt dùng chung cho tài khoản demo.
+ * @returns {Promise<{ dentistIds: number[], dentistsBySpecialty: Record<string, number[]> }>}
+ *   dentistIds: tất cả id bác sĩ; dentistsBySpecialty: nhóm theo tên chuyên khoa.
+ * @idempotent Có — ensureUser/ensureDentist không nhân đôi theo email/user_id.
+ */
 async function ensureDepartmentDentists(connection, passwordHash) {
   const dentistIds = [];
   const dentistsBySpecialty = {};
@@ -318,6 +395,15 @@ async function ensureDepartmentDentists(connection, passwordHash) {
   return { dentistIds, dentistsBySpecialty };
 }
 
+/**
+ * Liên kết một dịch vụ với nhiều bác sĩ trong bảng service_dentists.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {number} serviceId - id dịch vụ.
+ * @param {number[]} dentistIds - Danh sách id bác sĩ được phép thực hiện dịch vụ.
+ * @returns {Promise<void>}
+ * @idempotent Có — dùng INSERT IGNORE, cặp (service_id, dentist_id) trùng bị bỏ qua.
+ */
 async function linkServiceDentists(connection, serviceId, dentistIds) {
   for (const dentistId of dentistIds) {
     await connection.query('INSERT IGNORE INTO service_dentists (service_id, dentist_id) VALUES (?, ?)', [
@@ -327,6 +413,15 @@ async function linkServiceDentists(connection, serviceId, dentistIds) {
   }
 }
 
+/**
+ * Gán lịch trực (staff_shifts) cho danh sách bác sĩ: mỗi ngày × mỗi ca active trong dayCount ngày tới.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {number[]} dentistIds - Danh sách id bác sĩ cần gán ca.
+ * @param {number} [dayCount=14] - Số ngày tính từ hôm nay (0 = hôm nay).
+ * @returns {Promise<void>} Không làm gì nếu không có ca active hoặc dentistIds rỗng.
+ * @idempotent Có — INSERT IGNORE theo khóa (dentist_id, shift_id, work_date).
+ */
 async function ensureStaffShiftsForDentists(connection, dentistIds, dayCount = 14) {
   const [shiftRows] = await connection.query('SELECT id FROM shifts WHERE is_active = 1');
   if (!shiftRows.length || !dentistIds.length) return;
@@ -345,6 +440,14 @@ async function ensureStaffShiftsForDentists(connection, dentistIds, dayCount = 1
   }
 }
 
+/**
+ * Đảm bảo các ngày làm việc (working_days) được đánh dấu 'open' trong dayCount ngày tới.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL.
+ * @param {number} [dayCount=30] - Số ngày tính từ hôm nay.
+ * @returns {Promise<void>}
+ * @idempotent Có — INSERT IGNORE theo work_date; ngày đã có không bị ghi đè.
+ */
 async function ensureWorkingDays(connection, dayCount = 30) {
   for (let i = 0; i < dayCount; i++) {
     const workDate = formatDate(addDays(new Date(), i));
@@ -355,11 +458,19 @@ async function ensureWorkingDays(connection, dayCount = 30) {
   }
 }
 
+/**
+ * Bổ sung dữ liệu demo phong phú sau seed tối thiểu: admin/staff/khách, 12 bác sĩ, dịch vụ,
+ * bệnh nhân, ca trực, lịch hẹn mẫu, đánh giá, hồ sơ bệnh án, cấu hình phòng khám.
+ *
+ * @param {import('mysql2/promise').PoolConnection} connection - Kết nối MySQL (thường từ initDatabase).
+ * @returns {Promise<void>}
+ * @idempotent Phần lớn có — ensure* và INSERT IGNORE; lịch hẹn chỉ thêm khi COUNT < 20 và không trùng khóa logic.
+ */
 async function enrichDemoData(connection) {
   const bcrypt = require('bcrypt');
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
-  // --- Người dùng nội bộ & khách hàng ---
+  // --- Phần người dùng nội bộ & khách hàng ---
   const userIds = {
     admin: await ensureUser(connection, passwordHash, {
       full_name: 'Quản trị hệ thống',
@@ -393,12 +504,13 @@ async function enrichDemoData(connection) {
     }),
   };
 
+  // --- Phần bác sĩ theo khoa (12 người, 4 chuyên khoa) ---
   const { dentistIds, dentistsBySpecialty } = await ensureDepartmentDentists(
     connection,
     passwordHash
   );
 
-  // --- Dịch vụ ---
+  // --- Phần dịch vụ ---
   const serviceIds = [
     await ensureService(connection, {
       name: 'Khám tổng quát',
@@ -446,7 +558,7 @@ async function enrichDemoData(connection) {
 
   await linkServicesByDepartments(connection, serviceIds, dentistsBySpecialty);
 
-  // --- Bệnh nhân ---
+  // --- Phần bệnh nhân ---
   const patientSeeds = [
     { full_name: 'Trần Thị Bích', phone: '0912345678', email: 'patient1@example.com', note: 'Khách hàng demo đầu tiên.' },
     { full_name: 'Nguyễn Hoài Nam', phone: '0912345001', email: 'nam.nguyen@example.com', note: 'Đau răng hàm, cần tái khám định kỳ.' },
@@ -470,6 +582,7 @@ async function enrichDemoData(connection) {
     patientIds.push(await ensurePatient(connection, p));
   }
 
+  // --- Phần ca làm việc, lịch trực bác sĩ & ngày mở cửa ---
   const [shiftRows] = await connection.query(
     "SELECT id, name, start_time FROM shifts WHERE is_active = 1 ORDER BY start_time ASC"
   );
@@ -485,7 +598,7 @@ async function enrichDemoData(connection) {
   await ensureStaffShiftsForDentists(connection, dentistIds, 14);
   await ensureWorkingDays(connection, 30);
 
-  // --- Lịch hẹn mẫu (chỉ bổ sung khi chưa đủ dữ liệu) ---
+  // --- Phần lịch hẹn mẫu (chỉ bổ sung khi chưa đủ dữ liệu) ---
   const [apptCountRows] = await connection.query('SELECT COUNT(*) AS count FROM appointments');
   if (apptCountRows[0].count < 20) {
     const appointmentPlans = [
@@ -544,7 +657,7 @@ async function enrichDemoData(connection) {
       insertedAppointmentIds.push({ id: result.insertId, status: plan.status, patientIdx: plan.patientIdx });
     }
 
-    // Đánh giá cho lịch đã hoàn thành
+    // --- Phần đánh giá lịch hẹn đã hoàn thành ---
     const [completedAppts] = await connection.query(
       `SELECT id FROM appointments WHERE status = 'completed' ORDER BY id ASC`
     );
@@ -565,7 +678,7 @@ async function enrichDemoData(connection) {
       );
     }
 
-    // Hồ sơ bệnh án cho một số lịch hoàn thành
+    // --- Phần hồ sơ bệnh án mẫu ---
     const recordSamples = [
       { diagnosis: 'Viêm nướu nhẹ, vôi răng vừa', treatment: 'Cạo vôi, hướng dẫn vệ sinh răng miệng' },
       { diagnosis: 'Sâu răng cửa mức độ I', treatment: 'Trám composite, tái khám sau 1 tuần' },
@@ -594,7 +707,7 @@ async function enrichDemoData(connection) {
     }
   }
 
-  // Cấu hình phòng khám (tự sinh nếu chưa có)
+  // --- Phần cấu hình phòng khám ---
   const [clinicCount] = await connection.query('SELECT COUNT(*) AS count FROM clinic_settings');
   if (clinicCount[0].count === 0) {
     await connection.query(
@@ -611,8 +724,16 @@ async function enrichDemoData(connection) {
   }
 }
 
+/**
+ * Khởi tạo toàn bộ database: tạo DB/schema, migration cột/bảng thiếu, seed tối thiểu,
+ * enrich demo, cập nhật ảnh mẫu và hết hạn lịch quá khứ. Gọi một lần khi server khởi động.
+ *
+ * @returns {Promise<void>}
+ * @idempotent Có — CREATE IF NOT EXISTS, migration có điều kiện, seed chỉ khi bảng trống;
+ *   enrichDemoData và các ensure* an toàn khi chạy lại.
+ */
 async function initDatabase() {
-  // Đảm bảo database tồn tại bằng một kết nối tạm KHÔNG gắn sẵn database
+  // --- Phần tạo database (bootstrap không gắn sẵn tên DB) ---
   const bootstrap = await mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -627,7 +748,7 @@ async function initDatabase() {
     await bootstrap.end();
   }
 
-  // Lúc này database đã tồn tại, có thể dùng pool (đã gắn database) an toàn
+  // --- Phần kết nối pool và tạo schema bảng ---
   const connection = await pool.getConnection();
   try {
     await connection.query(`USE \`${DB_NAME}\`;`);
@@ -808,7 +929,7 @@ async function initDatabase() {
 
     await connection.query(schemaSql);
 
-    // Đảm bảo cấu trúc bảng/cột mới tồn tại nếu DB đã tạo từ trước
+    // --- Phần migration cột và bảng (DB cũ thiếu cấu trúc mới) ---
     const [userRoleEnum] = await connection.query(
       `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'`,
@@ -821,7 +942,6 @@ async function initDatabase() {
       );
     }
 
-    // Đảm bảo các cột mới tồn tại nếu DB đã tạo từ trước
     const [serviceThumbCols] = await connection.query(
       `SELECT COLUMN_NAME 
        FROM INFORMATION_SCHEMA.COLUMNS 
@@ -1005,7 +1125,7 @@ async function initDatabase() {
       });
     }
 
-    // Seed minimal data if empty
+    // --- Phần seed dữ liệu tối thiểu (khi bảng users trống) ---
     const [users] = await connection.query('SELECT COUNT(*) as count FROM users');
     if (users[0].count === 0) {
       const bcrypt = require('bcrypt');
@@ -1085,7 +1205,7 @@ async function initDatabase() {
       );
     }
 
-    // Seed shifts if empty
+    // --- Phần seed ca làm việc (shifts) ---
     const [shiftCount] = await connection.query('SELECT COUNT(*) AS count FROM shifts');
     if (shiftCount[0].count === 0) {
       await connection.query(
@@ -1096,7 +1216,7 @@ async function initDatabase() {
       );
     }
 
-    // Seed staff_shifts mẫu: 1 bác sĩ trực 7 ngày tới (cả 2 ca) để user có thể đặt lịch ngay
+    // --- Phần seed lịch trực mẫu (staff_shifts, 7 ngày × 2 ca) ---
     const [staffShiftCount] = await connection.query('SELECT COUNT(*) AS count FROM staff_shifts');
     if (staffShiftCount[0].count === 0) {
       const [dents] = await connection.query('SELECT id FROM dentists LIMIT 1');
@@ -1118,10 +1238,10 @@ async function initDatabase() {
       }
     }
 
-    // Bổ sung dữ liệu demo phong phú (idempotent, code tự sinh — không dùng file SQL)
+    // --- Phần bổ sung dữ liệu demo phong phú ---
     await enrichDemoData(connection);
 
-    // Cập nhật ảnh mẫu (kể cả DB cũ đang dùng placeholder .svg)
+    // --- Phần cập nhật đường dẫn ảnh mẫu ---
     await connection.query(
       `UPDATE services SET thumbnail_url = '/uploads/services/service-general.jpg'
        WHERE name = 'Khám tổng quát'`
@@ -1142,6 +1262,7 @@ async function initDatabase() {
        WHERE logo_url IS NULL OR logo_url = '' OR logo_url LIKE '%.png'`
     );
 
+    // --- Phần hết hạn lịch hẹn quá khứ (no_show) ---
     const { expirePastAppointments } = require('../utils/expireAppointments');
     const expired = await expirePastAppointments(connection);
     if (expired > 0) {

@@ -8,14 +8,19 @@ import AdminLayout from '../../components/admin/AdminLayout';
 
 function AdminShiftsPage() {
   const navigate = useNavigate();
+
+  // --- Danh sách ca làm việc ---
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [editing, setEditing] = useState(null); // null: tạo mới, số: sửa
+
+  // --- Modal tạo/sửa ca: editing = null (tạo) | id (sửa) ---
+  const [editing, setEditing] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({ name: '', start_time: '08:00', end_time: '11:30', max_appointments_per_dentist: 10, is_active: true });
   const [saving, setSaving] = useState(false);
 
+  // --- Mount: kiểm tra token, tải danh sách ca ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -24,6 +29,7 @@ function AdminShiftsPage() {
     load();
   }, [navigate]);
 
+  /** Tải toàn bộ ca làm việc từ API. */
   async function load() {
     setLoading(true);
     setError('');
@@ -37,12 +43,14 @@ function AdminShiftsPage() {
     }
   }
 
+  /** Mở modal ở chế độ tạo ca mới (reset form mặc định). */
   function openCreate() {
     setEditing(null);
     setIsModalOpen(true);
     setForm({ name: '', start_time: '08:00', end_time: '11:30', max_appointments_per_dentist: 10, is_active: true });
   }
 
+  /** Mở modal ở chế độ sửa ca; điền form từ dòng bảng. */
   function openEdit(row) {
     setEditing(row.id);
     setIsModalOpen(true);
@@ -55,6 +63,7 @@ function AdminShiftsPage() {
     });
   }
 
+  /** Lưu ca: gọi createShift hoặc updateShift tuỳ editing. */
   async function handleSave() {
     setSaving(true);
     setError('');
@@ -77,6 +86,7 @@ function AdminShiftsPage() {
   return (
     <AdminLayout active="shifts" title="Quản lý ca">
       <div className="space-y-6 text-sm">
+        {/* --- Tiêu đề & nút thêm ca --- */}
         <div className="flex justify-between items-center">
           <h1 className="text-lg font-semibold text-slate-900">Quản lý ca</h1>
           <button
@@ -93,6 +103,7 @@ function AdminShiftsPage() {
           <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>
         )}
 
+        {/* --- Bảng danh sách ca hoặc trạng thái đang tải --- */}
         {loading ? (
           <p className="text-slate-500">Đang tải...</p>
         ) : (
@@ -136,6 +147,7 @@ function AdminShiftsPage() {
           </div>
         )}
 
+        {/* --- Modal tạo/sửa ca --- */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">

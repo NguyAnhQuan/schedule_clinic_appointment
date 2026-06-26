@@ -5,15 +5,25 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FILE_BASE, getAuthToken, getAuthUser, getStoredRolePermissions, setAuthToken, setAuthUser } from '../../services/api';
 
+/**
+ * Layout khung cho mọi trang admin: sidebar điều hướng + header + vùng children.
+ * Menu hiển thị theo role và quyền staff lưu trong localStorage (Settings).
+ *
+ * @param {string} active - Key menu đang active (dashboard, appointments…)
+ * @param {string} title - Tiêu đề hiển thị trên header
+ * @param {React.ReactNode} children - Nội dung trang con
+ */
 function AdminLayout({ active, title, children }) {
-  // active: 'dashboard' | 'appointments' | 'patients' | 'services'
   const navigate = useNavigate();
   const isAuthed = !!getAuthToken();
   const user = getAuthUser();
   const role = user?.role;
+
+  // Quyền staff đọc một lần khi mount (useMemo tránh đọc localStorage mỗi render)
   const rolePerms = useMemo(() => getStoredRolePermissions(), []);
   const staffPerms = rolePerms?.staff || {};
 
+  // URL avatar: absolute http hoặc ghép FILE_BASE cho path tương đối
   const avatarUrl = user?.avatar_url;
   const displayAvatar = avatarUrl
     ? avatarUrl.startsWith('http')
@@ -21,6 +31,10 @@ function AdminLayout({ active, title, children }) {
       : `${FILE_BASE}${avatarUrl}`
     : null;
 
+  /**
+   * Map quyền hiển thị từng mục sidebar.
+   * admin: hầu hết full quyền; staff: theo staffPerms; dentist: chỉ lịch trực + calendar + profile.
+   */
   const can = {
     dashboard:
       role === 'admin' || (role === 'staff' && staffPerms.dashboard !== false),
@@ -46,9 +60,9 @@ function AdminLayout({ active, title, children }) {
 
   return (
     <div className="h-screen bg-bg-light text-slate-600 flex overflow-hidden font-sans">
-      {/* SIDEBAR – lấy style từ admin_dashboard_overview */}
+      {/* Sidebar cố định bên trái — ẩn trên mobile (md:flex) */}
       <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col h-screen">
-        {/* Logo */}
+        {/* Logo / link về trang chủ công khai */}
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
           <a href="/" className="flex items-center gap-2.5 text-primary font-bold text-lg tracking-tight">
             <img src="/logo.svg" alt="Nha Khoa" className="h-9 w-9 rounded-lg object-cover" />
@@ -56,7 +70,7 @@ function AdminLayout({ active, title, children }) {
           </a>
         </div>
 
-        {/* Navigation */}
+        {/* Menu: mỗi link chỉ render khi can.* = true; active === key thì highlight */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm">
           {can.dashboard && (
             <a
@@ -196,7 +210,7 @@ function AdminLayout({ active, title, children }) {
           )}
         </nav>
 
-        {/* User Profile (footer sidebar) – dùng avatar giống thiết kế */}
+        {/* Footer sidebar: link trang chủ (admin) + profile + đăng xuất */}
         <div className="p-4 border-t border-slate-100 flex flex-col gap-3">
           {role === 'admin' && (
             <a
@@ -246,6 +260,7 @@ function AdminLayout({ active, title, children }) {
             className="text-slate-400 hover:text-primary"
             title={isAuthed ? 'Đăng xuất' : 'Đăng nhập'}
             onClick={(e) => {
+              // Đã đăng nhập: xóa token/user local rồi full reload về trang login
               if (isAuthed) {
                 e.preventDefault();
                 setAuthToken(null);
@@ -262,9 +277,9 @@ function AdminLayout({ active, title, children }) {
         </div>
       </aside>
 
-      {/* MAIN CONTENT – header trên + vùng cuộn giống thiết kế */}
+      {/* Vùng chính: header cố định + children cuộn */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top header */}
+        {/* Header: menu mobile, tiêu đề trang, search, thông báo, CTA */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8">
           <div className="flex items-center gap-4">
             <button className="md:hidden text-slate-500 hover:text-primary">
@@ -302,7 +317,7 @@ function AdminLayout({ active, title, children }) {
           </div>
         </header>
 
-        {/* Scrollable content area */}
+        {/* Nội dung trang con (AdminAppointmentsPage, Dashboard…) — cuộn độc lập */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-bg-light">
           <div className="max-w-7xl mx-auto space-y-4">{children}</div>
         </div>

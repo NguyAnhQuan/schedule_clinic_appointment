@@ -13,6 +13,12 @@ const { validatePassword } = require('../utils/password');
 const { expirePastAppointments } = require('../utils/expireAppointments');
 const { isValidSpecialty } = require('../utils/dentistSpecialties');
 
+/**
+ * APPOINTMENT_STATUS_TRANSITIONS — Bảng chuyển trạng thái lịch hẹn hợp lệ.
+ * Quyền: (hằng số nội bộ, dùng bởi updateAppointmentStatus)
+ * Logic chính: key = trạng thái hiện tại, value = mảng trạng thái được phép chuyển tới;
+ * trạng thái kết thúc (completed, canceled, no_show) không cho chuyển tiếp.
+ */
 const APPOINTMENT_STATUS_TRANSITIONS = {
   pending: ['confirmed', 'canceled', 'no_show'],
   confirmed: ['checked_in', 'in_progress', 'canceled', 'no_show'],
@@ -23,6 +29,14 @@ const APPOINTMENT_STATUS_TRANSITIONS = {
   no_show: [],
 };
 
+/**
+ * findPatientIdByPhone — Tìm ID bệnh nhân theo số điện thoại (so khớp linh hoạt).
+ * Quyền: (hàm nội bộ, gọi từ createPatient / updatePatient)
+ * Logic chính: Lấy danh sách patients, dùng phonesMatch để so khớp số đã chuẩn hoá.
+ * @param {object} connOrPool - Kết nối DB hoặc pool (mặc định pool)
+ * @param {string} phone - Số điện thoại cần tìm
+ * @returns {Promise<number|null>} ID bệnh nhân hoặc null
+ */
 async function findPatientIdByPhone(connOrPool, phone) {
   const db = connOrPool || pool;
   const [rows] = await db.query('SELECT id, phone FROM patients');
@@ -30,6 +44,12 @@ async function findPatientIdByPhone(connOrPool, phone) {
   return match ? match.id : null;
 }
 
+/**
+ * ensureMedicalRecordForAppointment — Tự tạo hồ sơ bệnh án placeholder nếu chưa có.
+ * Quyền: (hàm nội bộ, gọi khi lịch hẹn chuyển sang completed)
+ * Logic chính: Kiểm tra medical_records theo appointment_id; nếu chưa có thì INSERT chẩn đoán/điều trị mặc định.
+ * @param {number|string} appointmentId - ID lịch hẹn
+ */
 async function ensureMedicalRecordForAppointment(appointmentId) {
   const [exists] = await pool.query(
     'SELECT id FROM medical_records WHERE appointment_id = ? LIMIT 1',
@@ -59,6 +79,13 @@ function formatDateKey(value) {
   return String(value).slice(0, 10);
 }
 
+/**
+ * getDashboard — Thống kê tổng quan phòng khám cho trang dashboard.
+ * Quyền: admin / staff / dentist (permission: dashboard)
+ * Logic chính: expirePastAppointments, đếm bệnh nhân/lịch hẹn/hôm nay, 10 lịch sắp tới, thống kê ca & tỷ lệ lấp đầy.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 async function getDashboard(req, res) {
   try {
     await expirePastAppointments(pool);
@@ -140,9 +167,11 @@ async function getDashboard(req, res) {
 }
 
 /**
- * Tổng quan lịch mở cửa theo ngày trong khoảng thời gian.
- * GET /admin/calendar-overview?from=YYYY-MM-DD&to=YYYY-MM-DD
- * Nếu không truyền from/to thì mặc định trả về 1 tháng tính từ hôm nay (15 ngày trước – 45 ngày sau).
+ * getCalendarOverview — Tổng quan lịch mở cửa theo ngày trong khoảng thời gian.
+ * Quyền: admin / staff / dentist (permission: calendar_overview)
+ * Logic chính: Gộp working_days, staff_shifts, capacity và số lịch đặt; trả trạng thái mở/đóng từng ngày (mặc định 15 ngày trước – 45 ngày sau).
+ * @param {import('express').Request} req - query: from, to (YYYY-MM-DD, tùy chọn)
+ * @param {import('express').Response} res
  */
 async function getCalendarOverview(req, res) {
   try {
@@ -293,14 +322,23 @@ async function getCalendarOverview(req, res) {
   }
 }
 
+/**
+ * listAppointments — Danh sách lịch hẹn có lọc và phân trang.
+ * Quyền: admin / staff (permission: appointments)
+ * Logic chính: expirePastAppointments, lọc theo status/date/shift_id/dentist_id, JOIN bệnh nhân/dịch vụ/ca/bác sĩ, trả data + pagination.
+ * @param {import('express').Request} req - query: page, limit, status, date, shift_id, dentist_id
+ * @param {import('express').Response} res
+ */
 async function listAppointments(req, res) {
   const { page = 1, limit = 20, status, date, shift_id, dentist_id } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
 
   try {
+    // Tự động đánh dấu no_show cho lịch quá hạn trước khi truy vấn
     await expirePastAppointments(pool);
     let where = '1=1';
     const params = [];
+    // Ghép điều kiện lọc động theo query string
     if (status) {
       where += ' AND a.status = ?';
       params.push(status);
@@ -318,6 +356,7 @@ async function listAppointments(req, res) {
       params.push(dentist_id);
     }
 
+    // Truy vấn danh sách lịch hẹn kèm thông tin liên quan
     const [rows] = await pool.query(
       `SELECT a.id, a.appointment_time, a.status, a.shift_id,
               DATE(a.appointment_time) AS appointment_date,
@@ -339,6 +378,7 @@ async function listAppointments(req, res) {
       [...params, Number(limit), offset]
     );
 
+    // Đếm tổng bản ghi để phân trang
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total FROM appointments a WHERE ${where}`,
       params
@@ -358,6 +398,13 @@ async function listAppointments(req, res) {
   }
 }
 
+/**
+ * updateAppointmentStatus — Cập nhật trạng thái một lịch hẹn.
+ * Quyền: admin / staff (permission: appointments)
+ * Logic chính: Validate status, kiểm tra chuyển trạng thái theo APPOINTMENT_STATUS_TRANSITIONS, UPDATE DB; nếu completed thì tạo hồ sơ bệnh án placeholder.
+ * @param {import('express').Request} req - params: id; body: status
+ * @param {import('express').Response} res
+ */
 async function updateAppointmentStatus(req, res) {
   const { id } = req.params;
   const { status } = req.body || {};
@@ -370,15 +417,18 @@ async function updateAppointmentStatus(req, res) {
     'canceled',
     'no_show',
   ];
+  // Kiểm tra status nằm trong danh sách cho phép
   if (!allowed.includes(status)) {
     return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
   }
 
   try {
+    // Lấy trạng thái hiện tại của lịch hẹn
     const [[current]] = await pool.query('SELECT status FROM appointments WHERE id = ? LIMIT 1', [id]);
     if (!current) {
       return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     }
+    // Kiểm tra chuyển trạng thái hợp lệ theo bảng APPOINTMENT_STATUS_TRANSITIONS
     const nextAllowed = APPOINTMENT_STATUS_TRANSITIONS[current.status] || [];
     if (current.status !== status && !nextAllowed.includes(status)) {
       return res.status(400).json({
@@ -391,6 +441,7 @@ async function updateAppointmentStatus(req, res) {
       return res.status(404).json({ message: 'Không tìm thấy lịch hẹn' });
     }
 
+    // Hoàn thành khám → đảm bảo có hồ sơ bệnh án
     if (status === 'completed') {
       await ensureMedicalRecordForAppointment(id);
     }
@@ -402,6 +453,13 @@ async function updateAppointmentStatus(req, res) {
   }
 }
 
+/**
+ * listPatients — Danh sách bệnh nhân có tìm kiếm và phân trang.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: Lọc theo q (tên/SĐT/email), ORDER BY created_at DESC, trả data + pagination.
+ * @param {import('express').Request} req - query: q, page, limit
+ * @param {import('express').Response} res
+ */
 async function listPatients(req, res) {
   const { q, page = 1, limit = 20 } = req.query;
   const offset = (Number(page) - 1) * Number(limit);
@@ -443,6 +501,13 @@ async function listPatients(req, res) {
   }
 }
 
+/**
+ * createPatient — Tạo bệnh nhân mới.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: Chuẩn hoá SĐT, kiểm tra trùng phonesMatch, INSERT patients, trả bản ghi vừa tạo.
+ * @param {import('express').Request} req - body: full_name, phone, email, note, avatar_url
+ * @param {import('express').Response} res
+ */
 async function createPatient(req, res) {
   const { full_name, phone, email, note, avatar_url } = req.body || {};
   if (!full_name || !phone) {
@@ -474,6 +539,13 @@ async function createPatient(req, res) {
   }
 }
 
+/**
+ * getPatientRecords — Lấy hồ sơ bệnh án và lịch hẹn của một bệnh nhân.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: Trả thông tin patient, danh sách medical_records kèm lịch hẹn, và appointments chưa có hồ sơ.
+ * @param {import('express').Request} req - params: id (patient id)
+ * @param {import('express').Response} res
+ */
 async function getPatientRecords(req, res) {
   const { id } = req.params;
 
@@ -518,6 +590,13 @@ async function getPatientRecords(req, res) {
   }
 }
 
+/**
+ * createMedicalRecord — Tạo hồ sơ bệnh án gắn với lịch hẹn.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: Xác minh patient + appointment thuộc patient, kiểm tra chưa có record, INSERT với chẩn đoán/điều trị mặc định nếu thiếu.
+ * @param {import('express').Request} req - params: id (patient id); body: appointment_id, diagnosis, treatment
+ * @param {import('express').Response} res
+ */
 async function createMedicalRecord(req, res) {
   const { id: patientId } = req.params;
   const { appointment_id, diagnosis, treatment } = req.body || {};
@@ -571,6 +650,13 @@ async function createMedicalRecord(req, res) {
   }
 }
 
+/**
+ * updateMedicalRecord — Cập nhật chẩn đoán / điều trị trong hồ sơ bệnh án.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: Cập nhật động các trường diagnosis/treatment được gửi lên, trả bản ghi sau cập nhật.
+ * @param {import('express').Request} req - params: id (record id); body: diagnosis, treatment
+ * @param {import('express').Response} res
+ */
 async function updateMedicalRecord(req, res) {
   const { id } = req.params;
   const { diagnosis, treatment } = req.body || {};
@@ -613,6 +699,13 @@ async function updateMedicalRecord(req, res) {
   }
 }
 
+/**
+ * deleteMedicalRecord — Xoá hồ sơ bệnh án.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: DELETE theo id; 404 nếu không tồn tại.
+ * @param {import('express').Request} req - params: id (record id)
+ * @param {import('express').Response} res
+ */
 async function deleteMedicalRecord(req, res) {
   const { id } = req.params;
   try {
@@ -627,6 +720,13 @@ async function deleteMedicalRecord(req, res) {
   }
 }
 
+/**
+ * updatePatient — Cập nhật thông tin bệnh nhân.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: Chuẩn hoá SĐT, kiểm tra trùng với bệnh nhân khác, UPDATE và trả bản ghi mới.
+ * @param {import('express').Request} req - params: id; body: full_name, phone, email, note, avatar_url
+ * @param {import('express').Response} res
+ */
 async function updatePatient(req, res) {
   const { id } = req.params;
   const { full_name, phone, email, note, avatar_url } = req.body || {};
@@ -664,6 +764,13 @@ async function updatePatient(req, res) {
   }
 }
 
+/**
+ * deletePatient — Xoá bệnh nhân.
+ * Quyền: admin / staff (permission: patients)
+ * Logic chính: DELETE theo id; bắt lỗi FK nếu còn lịch hẹn/hồ sơ liên quan.
+ * @param {import('express').Request} req - params: id
+ * @param {import('express').Response} res
+ */
 async function deletePatient(req, res) {
   const { id } = req.params;
   try {
@@ -684,6 +791,13 @@ async function deletePatient(req, res) {
   }
 }
 
+/**
+ * listUsers — Danh sách tài khoản người dùng.
+ * Quyền: admin
+ * Logic chính: Lọc theo q (tên/email/SĐT); có page thì phân trang, không có page thì trả toàn bộ mảng.
+ * @param {import('express').Request} req - query: page, limit, q
+ * @param {import('express').Response} res
+ */
 async function listUsers(req, res) {
   const { page, limit = 20, q } = req.query;
   try {
@@ -726,6 +840,13 @@ async function listUsers(req, res) {
   }
 }
 
+/**
+ * createUser — Tạo tài khoản người dùng mới.
+ * Quyền: admin
+ * Logic chính: Validate mật khẩu theo security settings, kiểm tra email trùng, bcrypt hash, INSERT users với role mặc định staff.
+ * @param {import('express').Request} req - body: full_name, phone, email, password, role
+ * @param {import('express').Response} res
+ */
 async function createUser(req, res) {
   const bcrypt = require('bcrypt');
   const { full_name, phone, email, password, role } = req.body || {};
@@ -769,6 +890,13 @@ async function createUser(req, res) {
   }
 }
 
+/**
+ * updateUser — Cập nhật thông tin tài khoản người dùng.
+ * Quyền: admin
+ * Logic chính: Cập nhật động full_name/phone/email/role/status/password; validate mật khẩu mới nếu có; kiểm tra email trùng.
+ * @param {import('express').Request} req - params: id; body: full_name, phone, email, role, status, password
+ * @param {import('express').Response} res
+ */
 async function updateUser(req, res) {
   const { id } = req.params;
   const { full_name, phone, email, role, status, password } = req.body || {};
@@ -839,6 +967,13 @@ async function updateUser(req, res) {
   }
 }
 
+/**
+ * deleteUser — Xoá tài khoản người dùng.
+ * Quyền: admin
+ * Logic chính: Không cho xoá chính mình, không xoá admin active cuối cùng, chặn nếu đã gắn dentist.
+ * @param {import('express').Request} req - params: id
+ * @param {import('express').Response} res
+ */
 async function deleteUser(req, res) {
   const { id } = req.params;
   const targetId = Number(id);
@@ -879,6 +1014,13 @@ async function deleteUser(req, res) {
   }
 }
 
+/**
+ * listDentists — Danh sách bác sĩ kèm thông tin user.
+ * Quyền: admin / staff (permission: dentists_view_edit)
+ * Logic chính: JOIN dentists + users, lọc theo q; có page thì phân trang, không có page thì trả mảng.
+ * @param {import('express').Request} req - query: page, limit, q
+ * @param {import('express').Response} res
+ */
 async function listDentists(req, res) {
   const { page, limit = 20, q } = req.query;
   try {
@@ -926,6 +1068,13 @@ async function listDentists(req, res) {
   }
 }
 
+/**
+ * createDentist — Tạo hồ sơ bác sĩ gắn với tài khoản user.
+ * Quyền: admin
+ * Logic chính: Kiểm tra user_id chưa gắn dentist, validate specialty, INSERT dentists.
+ * @param {import('express').Request} req - body: user_id, specialty, experience_year, description, is_active, avatar_url
+ * @param {import('express').Response} res
+ */
 async function createDentist(req, res) {
   const { user_id, specialty, experience_year, description, is_active, avatar_url } = req.body || {};
   if (!user_id) {
@@ -968,6 +1117,13 @@ async function createDentist(req, res) {
   }
 }
 
+/**
+ * updateDentist — Cập nhật thông tin bác sĩ.
+ * Quyền: admin / staff (permission: dentists_view_edit)
+ * Logic chính: Cập nhật động specialty/experience_year/description/is_active/avatar_url; validate specialty nếu có.
+ * @param {import('express').Request} req - params: id; body: specialty, experience_year, description, is_active, avatar_url
+ * @param {import('express').Response} res
+ */
 async function updateDentist(req, res) {
   const { id } = req.params;
   const { specialty, experience_year, description, is_active, avatar_url } = req.body || {};
@@ -1020,6 +1176,13 @@ async function updateDentist(req, res) {
   }
 }
 
+/**
+ * deleteDentist — Xoá hồ sơ bác sĩ.
+ * Quyền: admin
+ * Logic chính: DELETE theo id; bắt lỗi FK nếu còn lịch hẹn/dịch vụ liên quan.
+ * @param {import('express').Request} req - params: id
+ * @param {import('express').Response} res
+ */
 async function deleteDentist(req, res) {
   const { id } = req.params;
   try {
@@ -1039,6 +1202,13 @@ async function deleteDentist(req, res) {
   }
 }
 
+/**
+ * listServicesConfig — Danh sách dịch vụ kèm bác sĩ được gán.
+ * Quyền: admin
+ * Logic chính: SELECT services, gộp dentist_ids từ service_dentists; có page thì slice phân trang client-side.
+ * @param {import('express').Request} req - query: page, limit, q
+ * @param {import('express').Response} res
+ */
 async function listServicesConfig(req, res) {
   const { page, limit = 20, q } = req.query;
   try {
@@ -1087,6 +1257,13 @@ async function listServicesConfig(req, res) {
   }
 }
 
+/**
+ * createService — Tạo dịch vụ mới và gán bác sĩ thực hiện.
+ * Quyền: admin
+ * Logic chính: Chuẩn hoá name/price/duration/is_active, INSERT services, INSERT IGNORE service_dentists cho từng dentist_id.
+ * @param {import('express').Request} req - body: name, description, price, duration_minutes, is_active, thumbnail_url, dentist_ids
+ * @param {import('express').Response} res
+ */
 async function createService(req, res) {
   const { name, description, price, duration_minutes, is_active, thumbnail_url, dentist_ids } =
     req.body || {};
@@ -1150,6 +1327,13 @@ async function createService(req, res) {
   }
 }
 
+/**
+ * updateService — Cập nhật dịch vụ và danh sách bác sĩ gán.
+ * Quyền: admin
+ * Logic chính: COALESCE cập nhật các trường; nếu có dentist_ids thì xoá link cũ và gán lại.
+ * @param {import('express').Request} req - params: id; body: name, description, price, duration_minutes, is_active, thumbnail_url, dentist_ids
+ * @param {import('express').Response} res
+ */
 async function updateService(req, res) {
   const { id } = req.params;
   const { name, description, price, duration_minutes, is_active, thumbnail_url, dentist_ids } =
@@ -1228,6 +1412,13 @@ async function updateService(req, res) {
   }
 }
 
+/**
+ * deleteService — Xoá dịch vụ.
+ * Quyền: admin
+ * Logic chính: DELETE theo id; bắt lỗi FK nếu đang dùng trong lịch hẹn/hồ sơ.
+ * @param {import('express').Request} req - params: id
+ * @param {import('express').Response} res
+ */
 async function deleteService(req, res) {
   const { id } = req.params;
   try {
@@ -1247,6 +1438,13 @@ async function deleteService(req, res) {
   }
 }
 
+/**
+ * getClinicSettings — Lấy cấu hình phòng khám (bản ghi đầu tiên).
+ * Quyền: admin
+ * Logic chính: SELECT clinic_settings ORDER BY id LIMIT 1; trả null nếu chưa có.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 async function getClinicSettings(req, res) {
   try {
     const [rows] = await pool.query(
@@ -1259,6 +1457,13 @@ async function getClinicSettings(req, res) {
   }
 }
 
+/**
+ * updateClinicSettings — Lưu hoặc tạo cấu hình phòng khám.
+ * Quyền: admin
+ * Logic chính: UPSERT clinic_settings (thông tin cơ bản, logo, role_permissions_json, security_json), invalidate cache.
+ * @param {import('express').Request} req - body: clinic_name, address, phone, email, working_hours, logo_url, role_permissions, security
+ * @param {import('express').Response} res
+ */
 async function updateClinicSettings(req, res) {
   const {
     clinic_name,
@@ -1342,6 +1547,13 @@ async function updateClinicSettings(req, res) {
 }
 
 // --- Quản lý ca (shifts) ---
+/**
+ * listShifts — Danh sách ca làm việc.
+ * Quyền: admin / staff / dentist (JWT, không permission riêng)
+ * Logic chính: SELECT shifts sắp xếp theo start_time; trả [] nếu bảng chưa tồn tại.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 async function listShifts(req, res) {
   try {
     const [rows] = await pool.query(
@@ -1355,6 +1567,13 @@ async function listShifts(req, res) {
   }
 }
 
+/**
+ * createShift — Tạo ca làm việc mới.
+ * Quyền: admin
+ * Logic chính: Validate name/start_time/end_time, INSERT shifts với max_appointments_per_dentist mặc định 10.
+ * @param {import('express').Request} req - body: name, start_time, end_time, max_appointments_per_dentist, is_active
+ * @param {import('express').Response} res
+ */
 async function createShift(req, res) {
   const { name, start_time, end_time, max_appointments_per_dentist, is_active } = req.body || {};
   if (!name || !start_time || !end_time) {
@@ -1381,6 +1600,13 @@ async function createShift(req, res) {
   }
 }
 
+/**
+ * updateShift — Cập nhật ca làm việc.
+ * Quyền: admin
+ * Logic chính: Cập nhật động name/start_time/end_time/max_appointments_per_dentist/is_active.
+ * @param {import('express').Request} req - params: id; body: name, start_time, end_time, max_appointments_per_dentist, is_active
+ * @param {import('express').Response} res
+ */
 async function updateShift(req, res) {
   const { id } = req.params;
   const { name, start_time, end_time, max_appointments_per_dentist, is_active } = req.body || {};
@@ -1427,6 +1653,13 @@ async function updateShift(req, res) {
 }
 
 // --- Phân công nhân sự (staff_shifts) ---
+/**
+ * getStaffSchedules — Lấy lịch phân công bác sĩ theo ca (10 ngày mở cửa tới).
+ * Quyền: admin / staff / dentist (permission: staff_schedules)
+ * Logic chính: Xác định ngày mở từ working_days, lấy shifts/assignments/dentists và stats capacity vs booked cho UI màu.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
 async function getStaffSchedules(req, res) {
   try {
     const today = new Date();
@@ -1589,6 +1822,13 @@ async function getStaffSchedules(req, res) {
   }
 }
 
+/**
+ * updateStaffSchedules — Lưu phân công bác sĩ theo ca và ngày.
+ * Quyền: admin / staff / dentist (permission: staff_schedules); dentist chỉ sửa ca của chính mình
+ * Logic chính: Transaction ghi đè staff_shifts theo assignments; admin/staff xoá hết rồi INSERT lại, dentist chỉ bật/tắt ca riêng.
+ * @param {import('express').Request} req - body: assignments [{ shift_id, work_date, dentist_ids }]
+ * @param {import('express').Response} res
+ */
 async function updateStaffSchedules(req, res) {
   const { assignments } = req.body || {};
   if (!Array.isArray(assignments)) {
@@ -1676,7 +1916,13 @@ async function updateStaffSchedules(req, res) {
   }
 }
 
-// Đánh dấu ngày làm việc / ngày nghỉ cho phòng khám
+/**
+ * updateWorkingDay — Đánh dấu ngày mở cửa hoặc nghỉ cho phòng khám.
+ * Quyền: admin / staff (permission: calendar_overview)
+ * Logic chính: UPSERT working_days với status open/closed và note tùy chọn.
+ * @param {import('express').Request} req - body: date, status ('open'|'closed'), note
+ * @param {import('express').Response} res
+ */
 async function updateWorkingDay(req, res) {
   const { date, status, note } = req.body || {};
   if (!date) {

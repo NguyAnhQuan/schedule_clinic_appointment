@@ -4,6 +4,13 @@
  */
 const { getStaffPermissions } = require('../utils/clinicSettings');
 
+/**
+ * Factory middleware kiểm tra quyền chi tiết của role `staff` theo khóa trong `staff_permissions`.
+ * Admin và dentist bỏ qua bước này; staff bị từ chối nếu quyền tương ứng bị tắt (`false`).
+ *
+ * @param {string} permissionKey - Khóa quyền, ví dụ `'dashboard'`, `'appointments'`, `'patients'`.
+ * @returns {import('express').RequestHandler} Middleware async; 403 nếu staff không có quyền, 500 nếu lỗi đọc cấu hình.
+ */
 function authorizeStaffPermission(permissionKey) {
   return async (req, res, next) => {
     if (!req.user || req.user.role !== 'staff') {

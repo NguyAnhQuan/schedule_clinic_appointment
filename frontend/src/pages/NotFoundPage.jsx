@@ -11,8 +11,9 @@ function NotFoundPage() {
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar minimal />
+      {/* --- Nội dung chính: thông báo 404 --- */}
       <div className="flex-1 flex items-center justify-center px-4">
-        {/* Card 404 */}
+        {/* Card 404: mã lỗi, mô tả, nút quay lại */}
         <div className="text-center space-y-4 max-w-md w-full">
           <div className="text-5xl md:text-6xl font-extrabold text-primary tracking-tight">
             404

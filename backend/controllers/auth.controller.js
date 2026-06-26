@@ -11,6 +11,13 @@ const { generateToken } = require('../middlewares/auth');
 const { getSecuritySettings } = require('../utils/clinicSettings');
 const { validatePassword } = require('../utils/password');
 
+/**
+ * Tính thời gian sống (expiresIn) của JWT dựa trên cấu hình bảo mật phòng khám.
+ * Nếu `auto_logout_minutes` hợp lệ (1–1440 phút) thì dùng giá trị đó; ngược lại mặc định 8 giờ.
+ *
+ * @param {Object} [security] - Cấu hình bảo mật từ `getSecuritySettings()` (có thể chứa `auto_logout_minutes`).
+ * @returns {string} Chuỗi thời gian cho `jwt.sign`, ví dụ `'30m'` hoặc `'8h'`.
+ */
 function tokenExpiresIn(security) {
   const minutes = Number(security?.auto_logout_minutes);
   if (minutes > 0 && minutes <= 24 * 60) {
@@ -19,6 +26,14 @@ function tokenExpiresIn(security) {
   return '8h';
 }
 
+/**
+ * Đăng ký tài khoản khách hàng (role `customer`) mới.
+ * Kiểm tra email hợp lệ, mật khẩu theo chính sách bảo mật, trùng email; hash mật khẩu rồi tạo user và trả JWT.
+ *
+ * @param {import('express').Request} req - Body: `{ full_name, phone?, email, password }`.
+ * @param {import('express').Response} res - 201 kèm `{ message, token, user }` hoặc 400/500.
+ * @returns {Promise<void>}
+ */
 async function register(req, res) {
   const { full_name, phone, email, password } = req.body || {};
   if (!full_name || !email || !password) {
@@ -73,6 +88,14 @@ async function register(req, res) {
   }
 }
 
+/**
+ * Đăng nhập bằng email và mật khẩu.
+ * So sánh bcrypt, kiểm tra trạng thái tài khoản và hết hạn mật khẩu (admin/staff/dentist); trả JWT nếu hợp lệ.
+ *
+ * @param {import('express').Request} req - Body: `{ email, password }`.
+ * @param {import('express').Response} res - 200 kèm `{ token, user }`, 401/403/500 nếu lỗi.
+ * @returns {Promise<void>}
+ */
 async function login(req, res) {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -128,6 +151,13 @@ async function login(req, res) {
   }
 }
 
+/**
+ * Lấy thông tin hồ sơ người dùng đang đăng nhập (từ `req.user.id` do middleware JWT gắn).
+ *
+ * @param {import('express').Request} req - Cần `req.user.id` sau `authMiddleware`.
+ * @param {import('express').Response} res - JSON user `{ id, full_name, phone, email, role, avatar_url }` hoặc 404/500.
+ * @returns {Promise<void>}
+ */
 async function getMe(req, res) {
   try {
     const [rows] = await pool.query(
@@ -144,6 +174,14 @@ async function getMe(req, res) {
   }
 }
 
+/**
+ * Cập nhật một phần hồ sơ cá nhân (họ tên, SĐT, email, avatar_url) của user hiện tại.
+ * Chỉ cập nhật các trường được gửi; kiểm tra email hợp lệ và không trùng user khác.
+ *
+ * @param {import('express').Request} req - Body tùy chọn: `{ full_name?, phone?, email?, avatar_url? }`.
+ * @param {import('express').Response} res - JSON user sau cập nhật hoặc 400/500.
+ * @returns {Promise<void>}
+ */
 async function updateProfile(req, res) {
   const { full_name, phone, email, avatar_url } = req.body || {};
   const userId = req.user.id;
@@ -199,6 +237,14 @@ async function updateProfile(req, res) {
   }
 }
 
+/**
+ * Liệt kê lịch hẹn của khách hàng đăng nhập, khớp bệnh nhân qua email hoặc SĐT trên tài khoản.
+ * Trả mảng rỗng nếu không có email/SĐT hoặc không khớp bệnh nhân nào.
+ *
+ * @param {import('express').Request} req - Cần `req.user.id` sau `authMiddleware`.
+ * @param {import('express').Response} res - Mảng appointment (thời gian, trạng thái, dịch vụ, bác sĩ…) hoặc 500.
+ * @returns {Promise<void>}
+ */
 async function getMyAppointments(req, res) {
   const userId = req.user.id;
   try {

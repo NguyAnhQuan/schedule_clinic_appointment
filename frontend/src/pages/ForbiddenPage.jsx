@@ -11,8 +11,9 @@ function ForbiddenPage() {
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar minimal />
+      {/* --- Nội dung chính: thông báo 403 --- */}
       <div className="flex-1 flex items-center justify-center px-4">
-        {/* Card 403 */}
+        {/* Card 403: mã lỗi, mô tả, nút đăng nhập lại / về trang chủ */}
         <div className="max-w-md w-full rounded-3xl bg-white p-7 shadow-xl border border-amber-100 text-center space-y-4">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 text-2xl font-bold">
             403
@@ -22,6 +23,7 @@ function ForbiddenPage() {
             Tài khoản hiện tại không đủ quyền để truy cập khu vực này. Nếu bạn nghĩ đây là nhầm lẫn,
             vui lòng liên hệ quản trị hệ thống hoặc đăng nhập bằng tài khoản có phân quyền cao hơn.
           </p>
+          {/* --- Nhóm nút hành động --- */}
           <div className="flex flex-col sm:flex-row gap-2 text-xs justify-center">
             <button
               type="button"

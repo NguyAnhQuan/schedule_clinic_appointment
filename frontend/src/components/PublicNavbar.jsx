@@ -4,16 +4,28 @@
 import { useState, useEffect } from 'react';
 import { AdminApi, getAuthToken, getAuthUser, setAuthUser, setAuthToken, FILE_BASE } from '../services/api';
 
+/**
+ * Thanh điều hướng công khai.
+ * @param {boolean} minimal - true: ẩn menu link (dùng ở trang đặt lịch tập trung); false: hiện đủ link
+ */
 function PublicNavbar({ minimal = false }) {
+  // User từ localStorage — khởi tạo lazy nếu có token
   const [user, setUser] = useState(() => (getAuthToken() ? getAuthUser() : null));
+  // Hiển thị modal chỉnh sửa hồ sơ
   const [showProfileModal, setShowProfileModal] = useState(false);
+  // Đang tải dữ liệu hồ sơ vào form
   const [profileLoading, setProfileLoading] = useState(false);
+  // Đang gửi cập nhật hồ sơ
   const [profileSaving, setProfileSaving] = useState(false);
+  // Lỗi trong modal hồ sơ
   const [profileError, setProfileError] = useState('');
+  // Dữ liệu form chỉnh sửa hồ sơ
   const [profileForm, setProfileForm] = useState({ full_name: '', phone: '', email: '', avatar_url: '' });
   const isLoggedIn = !!getAuthToken();
+  // Chỉ hiển thị UI đăng nhập khi có user hợp lệ
   const displayUser = isLoggedIn ? user : null;
 
+  // Nếu có token nhưng chưa có user trong state → gọi API /me để đồng bộ
   useEffect(() => {
     if (!isLoggedIn || user) return;
     let cancelled = false;
@@ -25,6 +37,7 @@ function PublicNavbar({ minimal = false }) {
       })
       .catch(() => {
         if (cancelled) return;
+        // Token hết hạn hoặc không hợp lệ → xóa session
         setAuthToken(null);
         setAuthUser(null);
         setUser(null);
@@ -34,6 +47,7 @@ function PublicNavbar({ minimal = false }) {
     };
   }, [isLoggedIn, user]);
 
+  /** Mở modal và tải thông tin user mới nhất từ API */
   function openProfileModal() {
     setShowProfileModal(true);
     setProfileError('');
@@ -53,11 +67,13 @@ function PublicNavbar({ minimal = false }) {
     setProfileLoading(true);
   }
 
+  /** Đóng modal và xóa lỗi */
   function closeProfileModal() {
     setShowProfileModal(false);
     setProfileError('');
   }
 
+  /** Lưu thay đổi hồ sơ qua API updateProfile */
   function handleProfileSubmit(e) {
     e.preventDefault();
     setProfileSaving(true);
@@ -77,6 +93,7 @@ function PublicNavbar({ minimal = false }) {
       .finally(() => setProfileSaving(false));
   }
 
+  /** Upload ảnh đại diện — cập nhật avatar_url trong form */
   function handleAvatarUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -88,6 +105,7 @@ function PublicNavbar({ minimal = false }) {
       .catch((err) => setProfileError(err.message || 'Tải ảnh lên thất bại'));
   }
 
+  /** Xóa token và user khỏi localStorage + state */
   function handleLogout() {
     setAuthToken(null);
     setAuthUser(null);
@@ -95,6 +113,7 @@ function PublicNavbar({ minimal = false }) {
     setShowProfileModal(false);
   }
 
+  // URL ảnh hiển thị — ưu tiên form đang sửa, fallback user
   const avatarUrl = profileForm.avatar_url || displayUser?.avatar_url;
   const displayAvatar = avatarUrl
     ? avatarUrl.startsWith('http')
@@ -104,8 +123,10 @@ function PublicNavbar({ minimal = false }) {
 
   return (
     <>
+      {/* === HEADER: logo + menu + nút đăng nhập/hồ sơ === */}
       <header className="bg-white shadow-sm sticky top-0 z-30">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+          {/* Logo + tên phòng khám — link về trang chủ */}
           <a href="/" className="flex items-center gap-2.5 hover:opacity-90">
             <img
               src="/logo.svg"
@@ -120,6 +141,7 @@ function PublicNavbar({ minimal = false }) {
             </div>
           </a>
 
+          {/* Menu điều hướng — ẩn khi minimal=true hoặc màn hình nhỏ (md:flex) */}
           {!minimal && (
             <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
               <a href="/" className="font-medium hover:text-primary">
@@ -137,6 +159,7 @@ function PublicNavbar({ minimal = false }) {
             </nav>
           )}
 
+          {/* Khối phải: avatar user hoặc nút đăng nhập/đăng ký */}
           <div className="flex items-center gap-2">
             {displayUser ? (
               <button
@@ -177,7 +200,7 @@ function PublicNavbar({ minimal = false }) {
         </div>
       </header>
 
-      {/* Modal quản lý thông tin cá nhân */}
+      {/* === MODAL QUẢN LÝ HỒ SƠ CÁ NHÂN === */}
       {showProfileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">

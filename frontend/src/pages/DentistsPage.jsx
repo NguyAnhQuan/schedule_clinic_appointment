@@ -7,30 +7,51 @@ import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 import Pagination from '../components/Pagination';
 
+/** Số bác sĩ hiển thị mỗi trang */
 const PAGE_SIZE = 9;
 
+/** Trang danh sách bác sĩ — tìm kiếm, lọc chuyên khoa, phân trang, modal chi tiết */
 function DentistsPage() {
+  // Danh sách bác sĩ trang hiện tại
   const [dentists, setDentists] = useState([]);
+  // Từ khóa tìm theo tên/email
   const [q, setQ] = useState('');
+  // Lọc theo chuyên khoa (chuỗi rỗng = tất cả)
   const [specialty, setSpecialty] = useState('');
+  // Trang phân trang hiện tại
   const [page, setPage] = useState(1);
+  // Metadata phân trang từ API
   const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
+  // Trạng thái tải danh sách
   const [loading, setLoading] = useState(true);
+  // Lỗi khi tải danh sách
   const [error, setError] = useState('');
+  // ID bác sĩ đang mở modal chi tiết (null = đóng)
   const [detailId, setDetailId] = useState(null);
+  // Dữ liệu chi tiết bác sĩ từ API
   const [detail, setDetail] = useState(null);
+  // ID đã fetch xong — dùng so khớp với detailId để biết data còn hợp lệ không
   const [detailFetchedId, setDetailFetchedId] = useState(null);
+  // Lỗi khi tải chi tiết
   const [detailError, setDetailError] = useState('');
+
+  // Chỉ hiển thị detail khi ID fetch xong khớp ID đang mở (tránh flash data cũ)
   const displayDetail =
     detailId && String(detailFetchedId) === String(detailId) ? detail : null;
+  // Đang tải chi tiết khi có detailId nhưng chưa fetch xong ID đó
   const detailLoading = !!detailId && String(detailFetchedId) !== String(detailId);
   const displayDetailError = detailId ? detailError : '';
 
+  /** Chuyển điểm đánh giá trung bình (0–5) thành chuỗi sao đặc/rỗng */
   function renderStars(avg = 0) {
     const n = Math.max(0, Math.min(5, Math.round(Number(avg) || 0)));
     return `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
   }
 
+  /**
+   * Gọi API lấy danh sách bác sĩ.
+   * params ghi đè page/q/specialty khi cần (vd. search reset page=1).
+   */
   function loadDentists(params = {}) {
     setLoading(true);
     setError('');
@@ -48,17 +69,20 @@ function DentistsPage() {
       .finally(() => setLoading(false));
   }
 
+  // Tải lại danh sách khi đổi trang (q/specialty truyền qua closure state hiện tại)
   useEffect(() => {
     loadDentists({ q, specialty });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
+  /** Submit form tìm kiếm: reset trang 1 và gọi API với q/specialty hiện tại */
   function handleSearch(e) {
     e.preventDefault();
     setPage(1);
     loadDentists({ q, specialty, page: 1 });
   }
 
+  // Tải chi tiết bác sĩ khi user mở modal (detailId thay đổi)
   useEffect(() => {
     if (!detailId) return;
     let cancelled = false;
@@ -85,7 +109,7 @@ function DentistsPage() {
       <PublicNavbar />
 
       <main className="mx-auto max-w-6xl px-4 py-10 space-y-8 flex-1">
-        {/* Header giống thiết kế meet_our_dentists */}
+        {/* === HEADER TRANG === */}
         <section className="text-center space-y-3">
           <h1 className="text-3xl md:text-4xl font-bold text-text-main">Đội ngũ bác sĩ</h1>
           <p className="text-sm md:text-base text-slate-600 max-w-2xl mx-auto">
@@ -94,7 +118,7 @@ function DentistsPage() {
           </p>
         </section>
 
-        {/* Thanh tìm kiếm + bộ lọc */}
+        {/* === FORM TÌM KIẾM + LỌC CHUYÊN KHOA === */}
         <section className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100 space-y-4">
           <form
             onSubmit={handleSearch}
@@ -124,6 +148,7 @@ function DentistsPage() {
                   const next = e.target.value;
                   setSpecialty(next);
                   setPage(1);
+                  // Lọc ngay khi đổi select — không cần bấm nút tìm
                   loadDentists({ q, specialty: next, page: 1 });
                 }}
                 className="w-full rounded-button border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
@@ -138,6 +163,7 @@ function DentistsPage() {
           </form>
         </section>
 
+        {/* === LƯỚI DANH SÁCH BÁC SĨ + PHÂN TRANG === */}
         <section className="space-y-4">
           {loading && <div className="text-sm text-slate-500">Đang tải danh sách bác sĩ...</div>}
           {error && (
@@ -212,7 +238,7 @@ function DentistsPage() {
           />
         </section>
 
-        {/* Modal chi tiết bác sĩ */}
+        {/* === MODAL CHI TIẾT BÁC SĨ — overlay, click nền để đóng === */}
         {detailId && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -366,4 +392,3 @@ function DentistsPage() {
 }
 
 export default DentistsPage;
-

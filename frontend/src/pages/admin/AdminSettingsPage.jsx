@@ -9,8 +9,11 @@ import AdminLayout from '../../components/admin/AdminLayout';
 function AdminSettingsPage() {
   const navigate = useNavigate();
   const logoInputRef = useRef(null);
-  const [tab, setTab] = useState('clinic'); // clinic | roles | security
 
+  // --- Tab đang chọn: clinic | roles | security ---
+  const [tab, setTab] = useState('clinic');
+
+  // --- Form thông tin phòng khám (tên, địa chỉ, logo, giờ làm việc) ---
   const [clinic, setClinic] = useState({
     clinic_name: '',
     address: '',
@@ -20,6 +23,7 @@ function AdminSettingsPage() {
     logo_url: '',
   });
 
+  // --- Ma trận phân quyền nhân viên (staff) — sync localStorage sau khi lưu ---
   const [rolePermissions, setRolePermissions] = useState({
     staff: {
       dashboard: true,
@@ -31,6 +35,7 @@ function AdminSettingsPage() {
     },
   });
 
+  // --- Cài đặt bảo mật (mật khẩu, timeout, 2FA) ---
   const [security, setSecurity] = useState({
     password_expiration_days: 90,
     auto_logout_minutes: 15,
@@ -38,12 +43,14 @@ function AdminSettingsPage() {
     complex_passwords: true,
   });
 
+  // --- Trạng thái tải / lưu / upload logo / thông báo ---
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // --- Mount: kiểm tra token, tải cấu hình phòng khám từ API ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -91,10 +98,12 @@ function AdminSettingsPage() {
       .finally(() => setLoading(false));
   }, [navigate]);
 
+  /** Cập nhật một trường trong form clinic. */
   function updateClinic(field, value) {
     setClinic((prev) => ({ ...prev, [field]: value }));
   }
 
+  /** Lưu toàn bộ cấu hình (clinic + roles + security) lên server và localStorage. */
   async function handleSave() {
     setSaving(true);
     setError('');
@@ -115,6 +124,7 @@ function AdminSettingsPage() {
     }
   }
 
+  /** Upload logo phòng khám; cần bấm Save Changes để persist. */
   async function handleLogoFile(file) {
     if (!file) return;
     setUploadingLogo(true);
@@ -130,12 +140,14 @@ function AdminSettingsPage() {
     }
   }
 
+  /** Xử lý kéo-thả file logo vào vùng upload. */
   function handleDrop(e) {
     e.preventDefault();
     const f = e.dataTransfer.files?.[0];
     if (f) handleLogoFile(f);
   }
 
+  /** Bật/tắt một quyền trong ma trận rolePermissions. */
   function togglePermission(roleKey, key, value) {
     setRolePermissions((prev) => ({
       ...prev,
@@ -143,6 +155,7 @@ function AdminSettingsPage() {
     }));
   }
 
+  /** Cập nhật một cài đặt bảo mật (select hoặc toggle). */
   function toggleSecurity(key, value) {
     setSecurity((prev) => ({ ...prev, [key]: value }));
   }
@@ -150,6 +163,7 @@ function AdminSettingsPage() {
   return (
     <AdminLayout active="settings" title="System Settings">
       <div className="space-y-6">
+        {/* --- Header cố định: breadcrumb, nút Save, tab navigation --- */}
         <div className="-mx-4 md:-mx-8 px-4 md:px-8 py-4 bg-bg-light border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
@@ -213,6 +227,7 @@ function AdminSettingsPage() {
           <div className="text-[11px] text-slate-500 text-center">Đang tải cấu hình...</div>
         ) : (
           <div className="space-y-8">
+            {/* --- Tab Clinic Info: form thông tin & upload logo --- */}
             {tab === 'clinic' && (
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div>
@@ -320,6 +335,7 @@ function AdminSettingsPage() {
               </section>
             )}
 
+            {/* --- Tab User Roles: ma trận phân quyền staff --- */}
             {tab === 'roles' && (
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div>
@@ -439,6 +455,7 @@ function AdminSettingsPage() {
               </section>
             )}
 
+            {/* --- Tab Security: mật khẩu, timeout, 2FA --- */}
             {tab === 'security' && (
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div>
@@ -531,7 +548,7 @@ function AdminSettingsPage() {
               </section>
             )}
 
-            {/* Deposit Payment (disabled like design) */}
+            {/* --- Deposit Payment: placeholder bị khoá (chưa triển khai) --- */}
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-8 opacity-60 pointer-events-none grayscale relative select-none">
               <div className="absolute inset-0 z-10 flex items-center justify-center">
                 <div className="bg-white shadow-xl border border-slate-200 rounded-lg py-3 px-6 flex items-center gap-3">

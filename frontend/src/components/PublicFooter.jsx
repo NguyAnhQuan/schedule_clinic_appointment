@@ -1,10 +1,13 @@
 /**
  * FILE_GUIDE: PublicFooter.jsx — Chân trang công khai
  */
+
+/** Chân trang dùng chung cho các trang khách — logo, bản quyền, liên kết phụ */
 function PublicFooter() {
   return (
     <footer className="mt-10 border-t border-slate-200 bg-white">
       <div className="mx-auto max-w-6xl px-4 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+        {/* Khối trái: logo + năm bản quyền động */}
         <div className="flex items-center gap-2">
           <img src="/logo.svg" alt="Nha Khoa" className="h-8 w-8 rounded-lg object-cover" />
           <div>
@@ -14,6 +17,7 @@ function PublicFooter() {
             </div>
           </div>
         </div>
+        {/* Khối phải: liên kết phụ + thông tin liên hệ */}
         <div className="flex flex-col items-center md:items-end gap-1 text-[11px]">
           <div className="flex items-center gap-4">
             <a href="/terms" className="hover:text-primary">
@@ -34,4 +38,3 @@ function PublicFooter() {
 }
 
 export default PublicFooter;
-

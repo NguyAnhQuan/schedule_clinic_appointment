@@ -9,15 +9,22 @@ import AdminLayout from '../../components/admin/AdminLayout';
 function AdminPatientRecordDetailPage() {
   const navigate = useNavigate();
   const { id, recordId } = useParams();
+
+  // --- Dữ liệu hồ sơ & trạng thái tải (fetchedId !== id nghĩa là đang load) ---
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [fetchedId, setFetchedId] = useState(null);
+  const loading = fetchedId !== id;
+
+  // --- Chế độ sửa & form chẩn đoán/điều trị ---
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({ diagnosis: '', treatment: '' });
-  const loading = fetchedId !== id;
 
+  /**
+   * Tải toàn bộ hồ sơ bệnh nhân, tìm record theo recordId và điền editForm.
+   */
   async function loadData() {
     setError('');
     try {
@@ -37,6 +44,7 @@ function AdminPatientRecordDetailPage() {
     }
   }
 
+  // --- Mount & khi đổi id/recordId: kiểm tra token, tải chi tiết ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -45,10 +53,12 @@ function AdminPatientRecordDetailPage() {
     loadData();
   }, [id, recordId, navigate]);
 
+  // --- Dẫn xuất: bệnh nhân & hồ sơ đang xem ---
   const patient = data?.patient;
   const records = data?.records || [];
   const record = records.find((r) => String(r.id) === String(recordId));
 
+  /** Lưu thay đổi chẩn đoán/điều trị qua API updateMedicalRecord. */
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
@@ -66,6 +76,7 @@ function AdminPatientRecordDetailPage() {
     }
   }
 
+  /** Xoá hồ sơ sau confirm; điều hướng về trang danh sách hồ sơ. */
   async function handleDelete() {
     if (!window.confirm('Xoá hồ sơ bệnh án này? Thao tác không thể hoàn tác.')) return;
     setSaving(true);
@@ -82,6 +93,7 @@ function AdminPatientRecordDetailPage() {
   return (
     <AdminLayout active="patients" title="Patient Record Detail">
       <div className="space-y-6 text-xs">
+        {/* --- Nút quay lại trang lịch sử hồ sơ --- */}
         <button
           type="button"
           onClick={() => navigate(`/admin/patients/${id}/records`)}
@@ -96,18 +108,21 @@ function AdminPatientRecordDetailPage() {
             {error}
           </div>
         )}
+        {/* --- Thông báo thành công sau lưu --- */}
         {success && (
           <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-[11px] text-emerald-700">
             {success}
           </div>
         )}
 
+        {/* --- Skeleton tải dữ liệu --- */}
         {loading && (
           <div className="rounded-lg bg-white border border-slate-200 px-3 py-3 text-[11px] text-slate-600">
             Đang tải dữ liệu...
           </div>
         )}
 
+        {/* --- Không tìm thấy hồ sơ theo recordId --- */}
         {!loading && !record && (
           <div className="rounded-lg bg-white border border-amber-200 px-3 py-3 text-[11px] text-amber-700">
             Không tìm thấy hồ sơ bệnh án này.
@@ -116,6 +131,7 @@ function AdminPatientRecordDetailPage() {
 
         {patient && record && (
           <>
+            {/* --- Header: thông tin BN + nút Sửa/Xoá hồ sơ --- */}
             <section className="rounded-xl bg-white border border-slate-200 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl overflow-hidden ring-2 ring-slate-100 flex items-center justify-center bg-primary/10 text-primary font-semibold text-base">
@@ -182,6 +198,7 @@ function AdminPatientRecordDetailPage() {
               </div>
             </section>
 
+            {/* --- Nội dung hồ sơ: form sửa hoặc xem read-only --- */}
             <section className="rounded-xl bg-white border border-slate-200 p-4 md:p-5 shadow-sm">
               {editing ? (
                 <form onSubmit={handleSave} className="space-y-4">

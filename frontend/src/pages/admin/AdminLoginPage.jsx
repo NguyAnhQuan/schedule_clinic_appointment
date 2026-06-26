@@ -7,13 +7,19 @@ import { AdminApi } from '../../services/api';
 
 function AdminLoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@clinic.local');
-  const [password, setPassword] = useState('admin123');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+
+  // --- Tab đang active: 'login' hoặc 'signup' ---
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'signup'
 
-  // Đăng ký: thông tin đầy đủ
+  // --- Form đăng nhập ---
+  const [email, setEmail] = useState('admin@clinic.local');
+  const [password, setPassword] = useState('admin123');
+
+  // --- Trạng thái chung: loading khi gọi API, error hiển thị dưới form ---
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // --- Form đăng ký tài khoản mới (chủ yếu customer) ---
   const [signupFullName, setSignupFullName] = useState('');
   const [signupPhone, setSignupPhone] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
@@ -21,6 +27,10 @@ function AdminLoginPage() {
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [signupSuccess, setSignupSuccess] = useState('');
 
+  /**
+   * Xử lý đăng nhập: gọi AdminApi.login, lưu token/user (trong api service),
+   * rồi điều hướng theo role — dentist → lịch trực, admin/staff → dashboard, còn lại → trang chủ.
+   */
   async function handleLoginSubmit(e) {
     e.preventDefault();
     if (activeTab !== 'login') return;
@@ -45,6 +55,10 @@ function AdminLoginPage() {
     }
   }
 
+  /**
+   * Xử lý đăng ký: validate mật khẩu khớp và độ dài, gọi AdminApi.register.
+   * Nếu API trả token ngay thì redirect; không thì reset form và chuyển tab login.
+   */
   async function handleSignupSubmit(e) {
     e.preventDefault();
     setError('');
@@ -90,7 +104,8 @@ function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-background-light text-slate-900 flex">
-      {/* Left hero - chỉ hiện trên màn hình lớn, giống thiết kế ThietKe/login_registration */}
+      {/* Layout 2 cột: hero trái (desktop) + form phải */}
+      {/* Cột trái — banner thương hiệu, chỉ hiện từ breakpoint lg */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-primary">
         <div className="absolute inset-0 z-10 bg-primary/20 mix-blend-multiply" />
         <div
@@ -138,10 +153,10 @@ function AdminLoginPage() {
         </div>
       </div>
 
-      {/* Right form */}
+      {/* Cột phải — form đăng nhập / đăng ký */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-16 bg-background-light">
         <div className="w-full max-w-md mx-auto">
-          {/* Mobile header */}
+          {/* Header mobile: logo rút gọn khi không có cột hero */}
           <div className="lg:hidden flex items-center gap-2 mb-6">
             <span className="h-8 w-8 rounded bg-primary flex items-center justify-center text-white text-sm font-semibold">
               NK
@@ -158,7 +173,7 @@ function AdminLoginPage() {
             </p>
           </div>
 
-          {/* Toggle login / signup */}
+          {/* Chuyển tab Login ↔ Signup; đổi tab thì xóa thông báo lỗi/thành công cũ */}
           <div className="flex p-1 mb-6 bg-slate-200/60 rounded-xl">
             <button
               type="button"
@@ -192,6 +207,7 @@ function AdminLoginPage() {
             </button>
           </div>
 
+          {/* --- Tab đăng nhập: email + mật khẩu → handleLoginSubmit --- */}
           {activeTab === 'login' && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
@@ -263,6 +279,7 @@ function AdminLoginPage() {
             </form>
           )}
 
+          {/* --- Tab đăng ký: thông tin cá nhân + validate mật khẩu → handleSignupSubmit --- */}
           {activeTab === 'signup' && (
             <form onSubmit={handleSignupSubmit} className="space-y-4">
               <div>

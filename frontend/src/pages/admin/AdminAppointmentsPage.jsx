@@ -21,23 +21,37 @@ const STATUS_LABELS = {
 
 function AdminAppointmentsPage() {
   const navigate = useNavigate();
+
+  // --- Bộ lọc danh sách: gửi lên API qua buildParams() ---
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [shiftFilter, setShiftFilter] = useState('');
   const [dentistFilter, setDentistFilter] = useState('');
+
+  // --- Dữ liệu hiển thị & dropdown filter ---
   const [items, setItems] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [dentists, setDentists] = useState([]);
+
+  // --- Trạng thái tải / lỗi / chế độ xem ---
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState('table');
-  const [keyword, setKeyword] = useState('');
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'calendar' (demo)
+  const [keyword, setKeyword] = useState(''); // Lọc client-side theo tên BN/dịch vụ/BS
+
+  // --- Modal đổi trạng thái lịch hẹn ---
   const [actionAppointment, setActionAppointment] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [actionError, setActionError] = useState('');
+
+  // --- Phân trang server-side ---
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
+  /**
+   * Gọi API cập nhật trạng thái lịch đang mở trong modal.
+   * Tuỳ chọn confirmMessage để hiện window.confirm trước khi gọi API.
+   */
   async function applyAppointmentStatus(status, options = {}) {
     const { confirmMessage } = options;
     if (confirmMessage && !window.confirm(confirmMessage)) return;
@@ -55,6 +69,7 @@ function AdminAppointmentsPage() {
     }
   }
 
+  // --- Mount: kiểm tra token, tải lịch hẹn trang 1, preload dropdown ca & bác sĩ ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -66,6 +81,10 @@ function AdminAppointmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Gom query string từ state filter + trang hiện tại.
+   * Chỉ thêm key khi filter có giá trị (tránh gửi chuỗi rỗng).
+   */
   function buildParams() {
     const p = { page, limit: PAGE_SIZE };
     if (statusFilter) p.status = statusFilter;
@@ -75,6 +94,10 @@ function AdminAppointmentsPage() {
     return p;
   }
 
+  /**
+   * Tải danh sách lịch hẹn có spinner (loading=true).
+   * Merge buildParams() với params truyền vào (vd. đổi trang/filter).
+   */
   async function load(params = {}) {
     setLoading(true);
     setError('');
@@ -91,6 +114,10 @@ function AdminAppointmentsPage() {
     }
   }
 
+  /**
+   * Tải lại danh sách im lặng (không bật loading) — dùng sau khi đổi trạng thái
+   * để cập nhật bảng mà không làm nhấp nháy toàn trang.
+   */
   async function loadSilent(params = {}) {
     try {
       const q = { ...buildParams(), ...params };
@@ -104,17 +131,20 @@ function AdminAppointmentsPage() {
     }
   }
 
+  /** Chuyển trang phân trang: cập nhật state page và gọi load với page mới. */
   function handlePageChange(nextPage) {
     setPage(nextPage);
     load({ ...buildParams(), page: nextPage });
   }
 
+  /** Lọc theo trạng thái: reset về trang 1 và gọi API. */
   function handleFilterChange(value) {
     setStatusFilter(value);
     setPage(1);
     load({ ...buildParams(), status: value || undefined, page: 1 });
   }
 
+  /** Xóa toàn bộ filter + keyword, về trang 1 và load lại mặc định. */
   function handleResetFilters() {
     setStatusFilter('');
     setDateFilter('');

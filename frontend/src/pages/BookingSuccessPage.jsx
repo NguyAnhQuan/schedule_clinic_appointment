@@ -5,14 +5,22 @@ import { useParams, Link } from 'react-router-dom';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
+/**
+ * Trang xác nhận đặt lịch thành công.
+ * Mã lịch hẹn lấy từ URL (route /dat-lich/thanh-cong/:id) qua useParams — không gọi API.
+ */
 function BookingSuccessPage() {
+  // id: tham số động trong URL, ví dụ /dat-lich/thanh-cong/42 → id = "42"
   const { id } = useParams();
 
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar />
+
+      {/* === NỘI DUNG CHÍNH: thẻ thành công căn giữa màn hình === */}
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl border border-emerald-100 text-center space-y-4">
+          {/* Icon tick xanh */}
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
             <span className="text-2xl text-emerald-600">✓</span>
           </div>
@@ -21,6 +29,8 @@ function BookingSuccessPage() {
             Cảm ơn bạn đã tin tưởng Nha khoa Demo. Phòng khám sẽ liên hệ xác nhận lại lịch hẹn trong
             thời gian sớm nhất.
           </p>
+
+          {/* Thông tin tóm tắt: mã lịch từ URL + trạng thái mặc định "chờ xác nhận" */}
           <div className="rounded-2xl bg-bg-light px-4 py-3 text-left text-xs text-slate-700 space-y-1">
             <div className="flex justify-between">
               <span>Mã lịch hẹn</span>
@@ -33,6 +43,8 @@ function BookingSuccessPage() {
               </span>
             </div>
           </div>
+
+          {/* Liên kết điều hướng: tra cứu hoặc về trang chủ */}
           <div className="flex flex-col gap-2 text-xs">
             <Link
               to="/tra-cuu"
@@ -56,4 +68,3 @@ function BookingSuccessPage() {
 }
 
 export default BookingSuccessPage;
-

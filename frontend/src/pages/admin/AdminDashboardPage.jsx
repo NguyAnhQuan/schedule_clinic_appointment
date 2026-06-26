@@ -8,9 +8,12 @@ import AdminLayout from '../../components/admin/AdminLayout';
 
 function AdminDashboardPage() {
   const navigate = useNavigate();
+
+  // --- Dữ liệu thống kê tổng quan từ API dashboard ---
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
 
+  // --- Mount: kiểm tra token, gọi API lấy số liệu & lịch hẹn sắp tới ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -23,7 +26,7 @@ function AdminDashboardPage() {
 
   return (
     <AdminLayout active="dashboard" title="Dashboard Overview">
-      {/* Stats grid – bám thiết kế admin_dashboard_overview */}
+      {/* --- Lưới thẻ thống kê: tổng BN, lịch hôm nay, trạng thái hệ thống --- */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 text-sm">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col">
           <div className="flex items-center justify-between mb-4">
@@ -75,7 +78,7 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      {/* Widgets ca & phân công (nâng cấp) */}
+      {/* --- Widget bổ sung: ca hôm nay, BS trực, tỉ lệ lấp đầy, BN theo ca --- */}
       {(data?.shifts_today != null || data?.dentists_on_duty != null || data?.fill_rate != null) && (
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-sm">
           <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
@@ -102,9 +105,9 @@ function AdminDashboardPage() {
         </section>
       )}
 
-      {/* Charts section – chỉ là placeholder UI giống thiết kế */}
+      {/* --- Biểu đồ minh hoạ (placeholder UI, chưa nối dữ liệu thật) --- */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Weekly visits (cột) */}
+        {/* Biểu đồ cột: lượt khám theo tuần (dữ liệu giả) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-slate-800">Weekly Visits</h3>
@@ -137,7 +140,7 @@ function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Revenue overview (line giả) */}
+        {/* Biểu đồ đường: doanh thu theo tuần (dữ liệu giả) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-slate-800">Revenue Overview</h3>
@@ -187,7 +190,7 @@ function AdminDashboardPage() {
         </div>
       </section>
 
-      {/* Upcoming appointments – bảng chi tiết giống thiết kế */}
+      {/* --- Bảng lịch hẹn sắp tới (dữ liệu thật từ API) --- */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden text-sm">
         <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h3 className="font-bold text-lg text-slate-800">Lịch hẹn sắp tới</h3>
@@ -219,6 +222,7 @@ function AdminDashboardPage() {
           </div>
         )}
 
+        {/* --- Bảng dữ liệu lịch hẹn sắp tới --- */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

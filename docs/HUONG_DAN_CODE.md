@@ -1,6 +1,12 @@
 # Hướng dẫn đọc code — Hệ thống đặt lịch phòng khám
 
-Tài liệu này giúp bạn học cấu trúc dự án. Mỗi file nguồn cũng có **khối ghi chú đầu file** (`FILE_GUIDE`) giải thích vai trò.
+Tài liệu này giúp bạn học cấu trúc dự án. Mỗi file nguồn có:
+
+1. **Khối `FILE_GUIDE` đầu file** — vai trò file, luồng chính, file liên quan.
+2. **JSDoc tiếng Việt trước mỗi hàm** — tên, mô tả, quyền (backend), logic chính, `@param`/`@returns`.
+3. **Comment inline** — nhóm `useState`, từng `useEffect`, handler, section JSX (`// --- Bước 1 ---`).
+
+**Cách đọc nhanh:** mở file → đọc `FILE_GUIDE` → lướt JSDoc từng hàm → đọc comment trong thân hàm / JSX.
 
 ## Kiến trúc tổng quan
 
@@ -52,28 +58,38 @@ Backend Express (backend/server.js)
 - `patients` — bệnh nhân (có thể không có tài khoản)
 - `appointments` — lịch hẹn (`status`: pending → confirmed → completed / no_show)
 
-## Danh sách file có ghi chú FILE_GUIDE
+## Danh sách file đã ghi chú chi tiết
 
-Mở bất kỳ file nào bên dưới — đầu file có khối `FILE_GUIDE` giải thích vai trò.
+Toàn bộ file nguồn chính (backend + frontend) đều có `FILE_GUIDE` **và** JSDoc/comment từng hàm.
 
 ### Backend
-- `server.js`, `config/db.js`
-- `controllers/public.controller.js`, `admin.controller.js`, `auth.controller.js`
-- `routes/public.routes.js`, `admin.routes.js`, `auth.routes.js`
-- `middlewares/auth.js`, `staffPermissions.js`, `upload.js`
-- `utils/appointmentSlots.js`, `phone.js`, `password.js`, `clinicSettings.js`, `expireAppointments.js`, `dentistSpecialties.js`
+| File | Nội dung ghi chú |
+|------|------------------|
+| `server.js` | Entry point, middleware, mount route, `initDatabase` |
+| `config/db.js` | 14+ hàm: schema, seed, enrich demo |
+| `controllers/public.controller.js` | 18 hàm API công khai (đặt lịch, slot…) |
+| `controllers/admin.controller.js` | 32 hàm CRUD + dashboard + chuyển trạng thái |
+| `controllers/auth.controller.js` | register, login, profile, my-appointments |
+| `routes/*.routes.js` | Comment từng dòng route |
+| `middlewares/*.js` | JWT, phân quyền staff, upload multer |
+| `utils/*.js` | Slot/overlap, SĐT, mật khẩu, expire, chuyên khoa |
 
 ### Frontend
-- `main.jsx`, `App.jsx`, `services/api.js`
-- `pages/BookAppointmentPage.jsx` (có thêm ghi chú từng useEffect)
-- Tất cả trang trong `pages/` và `pages/admin/`
-- `components/` (Pagination, Navbar, AdminLayout…)
+| File | Nội dung ghi chú |
+|------|------------------|
+| `services/api.js` | Mọi export + 12 PublicApi + 38 AdminApi |
+| `App.jsx` | PublicRoute, nhóm Route |
+| `pages/BookAppointmentPage.jsx` | Helper, state, 6 useEffect, 3 bước form |
+| `pages/*` (public) | Home, Services, Dentists, Check, Success… |
+| `pages/admin/*` | 12 trang admin: state, load, modal, bảng |
+| `components/*` | Pagination, Navbar, Footer, AdminLayout, RouteGuard |
 
+## Lộ trình học đề xuất
 
-1. `backend/server.js`
-2. `backend/routes/public.routes.js` + `public.controller.js` (hàm `createAppointment`)
-3. `backend/utils/appointmentSlots.js`
-4. `frontend/src/services/api.js`
-5. `frontend/src/pages/BookAppointmentPage.jsx`
-6. `backend/config/db.js` (phần `enrichDemoData`)
-7. `admin.controller.js` + các trang `frontend/src/pages/admin/*`
+1. `backend/server.js` → hiểu luồng request
+2. `routes/public.routes.js` + `public.controller.js` (đặc biệt `createAppointment`)
+3. `utils/appointmentSlots.js` — logic slot và chống trùng giờ
+4. `frontend/src/services/api.js` — cách frontend gọi backend
+5. `pages/BookAppointmentPage.jsx` — UI 3 bước + useEffect phụ thuộc form
+6. `config/db.js` (`enrichDemoData`) — dữ liệu mẫu
+7. `admin.controller.js` + `pages/admin/*` — quản trị

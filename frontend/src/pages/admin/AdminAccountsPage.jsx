@@ -11,9 +11,15 @@ const PAGE_SIZE = 20;
 
 function AdminAccountsPage() {
   const navigate = useNavigate();
+
+  // --- Danh sách tài khoản & phân trang ---
   const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // --- Modal tạo tài khoản ---
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -23,6 +29,8 @@ function AdminAccountsPage() {
     password: '',
     role: 'staff',
   });
+
+  // --- Modal sửa tài khoản ---
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({
     full_name: '',
@@ -32,11 +40,12 @@ function AdminAccountsPage() {
     status: 'active',
     password: '',
   });
+
+  // --- Modal xác nhận xoá ---
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
+  // --- Mount: kiểm tra token, tải danh sách users ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -45,6 +54,10 @@ function AdminAccountsPage() {
     load();
   }, [navigate]);
 
+  /**
+   * Tải danh sách tài khoản; hỗ trợ cả response dạng mảng hoặc { data, pagination }.
+   * @param {object} [params={}]
+   */
   async function load(params = {}) {
     setLoading(true);
     setError('');
@@ -65,11 +78,13 @@ function AdminAccountsPage() {
     }
   }
 
+  /** Đổi trang phân trang. */
   function handlePageChange(nextPage) {
     setPage(nextPage);
     load({ page: nextPage });
   }
 
+  /** Tạo tài khoản mới (admin/dentist/staff/customer). */
   async function handleCreate(e) {
     e.preventDefault();
     setCreating(true);
@@ -86,6 +101,7 @@ function AdminAccountsPage() {
     }
   }
 
+  /** Mở modal sửa: copy thông tin user vào editForm (password để trống). */
   function startEdit(u) {
     setEditId(u.id);
     setEditForm({
@@ -98,6 +114,7 @@ function AdminAccountsPage() {
     });
   }
 
+  /** Cập nhật tài khoản; bỏ password khỏi payload nếu không đổi. */
   async function handleEditSubmit(e) {
     e.preventDefault();
     if (!editId) return;
@@ -116,6 +133,7 @@ function AdminAccountsPage() {
     }
   }
 
+  /** Xoá tài khoản đã chọn trong modal xác nhận. */
   async function handleDelete() {
     if (!deleteId) return;
     setDeleting(true);
@@ -134,6 +152,7 @@ function AdminAccountsPage() {
   return (
     <AdminLayout active="accounts" title="Quản lý tài khoản">
       <div className="space-y-6 text-xs">
+        {/* --- Tiêu đề & nút thêm tài khoản --- */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Danh sách tài khoản</h1>
@@ -157,6 +176,7 @@ function AdminAccountsPage() {
           </div>
         )}
 
+        {/* --- Bảng danh sách tài khoản + phân trang --- */}
         <div className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
           <div className="overflow-auto">
             <table className="min-w-full text-left border-collapse">

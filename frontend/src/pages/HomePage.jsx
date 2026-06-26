@@ -6,13 +6,21 @@ import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
+/** Component trang chủ — hiển thị hero, thống kê, dịch vụ nổi bật và đội ngũ bác sĩ */
 function HomePage() {
+  // Danh sách khoa + bác sĩ (API trả về nhóm theo specialty)
   const [departments, setDepartments] = useState([]);
+  // Tối đa 6 dịch vụ đầu tiên để hiển thị ở section "Dịch vụ nổi bật"
   const [featuredServices, setFeaturedServices] = useState([]);
+  // true khi đang gọi API đội ngũ; false sau khi xong (thành công hoặc lỗi)
   const [loadingTeam, setLoadingTeam] = useState(true);
 
+  // Chạy một lần khi mount: tải đội ngũ theo khoa và dịch vụ nổi bật song song
   useEffect(() => {
+    // Cờ tránh setState sau khi component đã unmount (race condition)
     let mounted = true;
+
+    // API: bác sĩ nhóm theo chuyên khoa
     PublicApi.getDentistsByDepartment()
       .then((data) => {
         if (mounted) setDepartments(data.departments || []);
@@ -24,6 +32,7 @@ function HomePage() {
         if (mounted) setLoadingTeam(false);
       });
 
+    // API: lấy trang 1, giới hạn 6 — slice thêm lần nữa để chắc chắn ≤ 6 mục
     PublicApi.getServices({ page: 1, limit: 6 })
       .then((data) => {
         if (!mounted) return;
@@ -34,11 +43,13 @@ function HomePage() {
         if (mounted) setFeaturedServices([]);
       });
 
+    // Cleanup: đánh dấu unmount để bỏ qua callback Promise còn treo
     return () => {
       mounted = false;
     };
   }, []);
 
+  /** Ghép URL đầy đủ cho ảnh avatar — hỗ trợ đường dẫn tuyệt đối hoặc tương đối từ FILE_BASE */
   function mediaUrl(url) {
     if (!url) return '';
     return url.startsWith('http') ? url : `${FILE_BASE}${url.startsWith('/') ? url : `/${url}`}`;
@@ -49,9 +60,11 @@ function HomePage() {
       <PublicNavbar />
 
       <main className="flex-1">
+        {/* === SECTION HERO: tiêu đề, mô tả, CTA, ảnh minh họa === */}
         <section className="relative pt-16 pb-16 lg:pt-20 lg:pb-24 overflow-hidden">
           <div className="mx-auto max-w-6xl px-4 lg:px-8 relative">
             <div className="lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+              {/* Cột trái: badge, headline, nút hành động, điểm tin cậy */}
               <div className="lg:col-span-6 text-center lg:text-left mb-10 lg:mb-0 relative z-10">
                 <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wide mb-4">
                   <span className="w-2 h-2 rounded-full bg-primary mr-2" />
@@ -95,6 +108,7 @@ function HomePage() {
                 </div>
               </div>
 
+              {/* Cột phải: ảnh hero + thẻ thống kê nổi */}
               <div className="lg:col-span-6 relative mt-6 lg:mt-0">
                 <div className="absolute -top-10 -right-10 w-64 h-64 bg-primary/20 rounded-full blur-3xl opacity-60 pointer-events-none" />
                 <div className="absolute -bottom-10 -left-16 w-56 h-56 bg-blue-400/20 rounded-full blur-3xl opacity-60 pointer-events-none" />
@@ -119,6 +133,7 @@ function HomePage() {
           </div>
         </section>
 
+        {/* === SECTION THỐNG KÊ: số liệu tĩnh (hardcode) === */}
         <section className="py-12 bg-white border-y border-slate-100">
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
@@ -137,6 +152,7 @@ function HomePage() {
           </div>
         </section>
 
+        {/* === SECTION DỊCH VỤ NỔI BẬT: render từ state featuredServices === */}
         <section className="py-14 bg-bg-light">
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
             <div className="text-center max-w-2xl mx-auto mb-10">
@@ -172,6 +188,7 @@ function HomePage() {
           </div>
         </section>
 
+        {/* === SECTION ĐỘI NGŨ: nhóm bác sĩ theo từng khoa (departments) === */}
         <section className="py-14 bg-white">
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
             <div className="text-center max-w-2xl mx-auto mb-10">
@@ -231,6 +248,7 @@ function HomePage() {
           </div>
         </section>
 
+        {/* === SECTION QUY TRÌNH KHÁM: 4 bước tĩnh === */}
         <section className="py-14 bg-bg-light">
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
             <div className="text-center max-w-2xl mx-auto mb-10">
@@ -254,6 +272,7 @@ function HomePage() {
           </div>
         </section>
 
+        {/* === SECTION ĐÁNH GIÁ KHÁCH HÀNG: testimonial tĩnh === */}
         <section className="py-14 bg-white">
           <div className="mx-auto max-w-6xl px-4 lg:px-8">
             <div className="text-center max-w-2xl mx-auto mb-10">
@@ -274,6 +293,7 @@ function HomePage() {
           </div>
         </section>
 
+        {/* === SECTION CTA CUỐI: kêu gọi đặt lịch === */}
         <section className="py-16 bg-primary text-white">
           <div className="mx-auto max-w-6xl px-4 lg:px-8 text-center">
             <h2 className="text-2xl md:text-3xl font-bold mb-3">Sẵn sàng chăm sóc nụ cười của bạn?</h2>

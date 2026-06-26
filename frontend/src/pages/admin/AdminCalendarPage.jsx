@@ -6,6 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, getAuthUser } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
+/**
+ * Chuyển đối tượng Date sang chuỗi YYYY-MM-DD theo múi giờ local (dùng cho API & so sánh ngày).
+ * @param {Date|string|number} date
+ * @returns {string}
+ */
 function toLocalDateStr(date) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -14,6 +19,11 @@ function toLocalDateStr(date) {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Tính khoảng ngày đầu–cuối của tháng chứa `date` (dùng làm from/to gọi API).
+ * @param {Date|string|number} date
+ * @returns {{ from: string, to: string }}
+ */
 function getMonthRange(date) {
   const d = new Date(date);
   d.setDate(1);
@@ -25,6 +35,11 @@ function getMonthRange(date) {
   return { from: firstDay, to: lastDay };
 }
 
+/**
+ * Hiển thị nhãn tháng tiếng Việt (vd: "tháng 6 năm 2026") từ chuỗi ngày đầu tháng.
+ * @param {string} dateStr — YYYY-MM-DD (ngày 1 của tháng)
+ * @returns {string}
+ */
 function formatMonthLabel(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
@@ -34,21 +49,30 @@ function AdminCalendarPage() {
   const navigate = useNavigate();
   const authUser = getAuthUser();
   const role = authUser?.role;
+
+  // --- Tháng đang xem (state = ngày 1 của tháng, dạng YYYY-MM-DD) ---
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     today.setDate(1);
     return toLocalDateStr(today);
   });
+
+  // --- Dữ liệu lịch từ API: chi tiết từng ngày & override mở/đóng ---
   const [days, setDays] = useState([]);
   const [openOverrideDates, setOpenOverrideDates] = useState([]);
   const [closedOverrideDates, setClosedOverrideDates] = useState([]);
+
+  // --- Trạng thái tải / lỗi ---
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // --- Modal chỉnh trạng thái ngày (mở/đóng + ghi chú) ---
   const [modalDate, setModalDate] = useState(null);
   const [modalStatus, setModalStatus] = useState('open');
   const [modalNote, setModalNote] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // --- Mount & khi đổi tháng: kiểm tra token rồi tải overview ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -57,6 +81,9 @@ function AdminCalendarPage() {
     load();
   }, [navigate, currentMonth]);
 
+  /**
+   * Gọi API lấy tổng quan lịch tháng hiện tại (sức chứa, đã đặt, override ngày nghỉ).
+   */
   async function load() {
     setLoading(true);
     setError('');
@@ -73,6 +100,7 @@ function AdminCalendarPage() {
     }
   }
 
+  // --- Biến dẫn xuất: tính lưới lịch tháng (Th 2 = cột đầu) ---
   const monthDate = new Date(currentMonth);
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -85,10 +113,16 @@ function AdminCalendarPage() {
   const openOverrideSet = new Set(openOverrideDates);
   const closedOverrideSet = new Set(closedOverrideDates);
 
+  /** Lấy object thông tin ngày từ map (capacity, booked, note, dentists_on_duty). */
   function getDayInfo(dateStr) {
     return dayMap.get(dateStr);
   }
 
+  /**
+   * Kiểm tra ngày có bị đóng cửa không (ưu tiên override mở > override đóng > mặc định mở).
+   * @param {string} dateStr
+   * @returns {boolean}
+   */
   function isClosedDate(dateStr) {
     if (openOverrideSet.has(dateStr)) return false;
     if (closedOverrideSet.has(dateStr)) return true;
@@ -96,6 +130,12 @@ function AdminCalendarPage() {
     return false;
   }
 
+  /**
+   * Phân loại trạng thái hiển thị ô lịch: closed | open | filling | busy | full.
+   * Dựa trên tỉ lệ booked/capacity và cấu hình ngày nghỉ.
+   * @param {string} dateStr
+   * @returns {'closed'|'open'|'filling'|'busy'|'full'}
+   */
   function getDayStatus(dateStr) {
     // Chỉ coi là "closed" khi có cấu hình ngày nghỉ
     if (isClosedDate(dateStr)) return 'closed';
@@ -115,6 +155,7 @@ function AdminCalendarPage() {
     return 'open';
   }
 
+  /** Rút gọn ghi chú ngày để hiển thị trong ô lịch (tối đa ~20 ký tự). */
   function getNoteSnippet(info) {
     if (!info || !info.note) return '';
     const raw = String(info.note).trim();
@@ -124,6 +165,7 @@ function AdminCalendarPage() {
     return `${raw.slice(0, maxLen - 1)}…`;
   }
 
+  /** Trả về class Tailwind cho màu ô lịch theo trạng thái và quá khứ/hiện tại. */
   function getBadgeClass(dateStr) {
     const status = getDayStatus(dateStr);
     if (dateStr < todayStr) {
@@ -144,6 +186,7 @@ function AdminCalendarPage() {
     }
   }
 
+  // --- Xây mảng ô lịch: null = ô trống đầu tuần, số = ngày trong tháng ---
   const cells = [];
   for (let i = 0; i < startWeekday; i += 1) {
     cells.push(null);
@@ -152,6 +195,7 @@ function AdminCalendarPage() {
     cells.push(day);
   }
 
+  /** Chuyển sang tháng trước/sau (delta = ±1). */
   function changeMonth(delta) {
     const d = new Date(currentMonth);
     d.setMonth(d.getMonth() + delta);
@@ -159,6 +203,10 @@ function AdminCalendarPage() {
     setCurrentMonth(toLocalDateStr(d));
   }
 
+  /**
+   * Click ô ngày: mở modal chỉnh mở/đóng (chỉ admin/staff, chỉ ngày tương lai).
+   * @param {number} day — số ngày trong tháng (1–31)
+   */
   async function handleClickDate(day) {
     if (!day) return;
     const dateStr = toLocalDateStr(new Date(year, month, day));
@@ -170,6 +218,7 @@ function AdminCalendarPage() {
     setModalNote('');
   }
 
+  /** Lưu trạng thái ngày (open/closed) và ghi chú qua API updateWorkingDay. */
   async function handleSaveDay() {
     if (!modalDate) return;
     try {
@@ -189,6 +238,7 @@ function AdminCalendarPage() {
   return (
     <AdminLayout active="calendar" title="Quản lý lịch (Calendar)">
       <div className="space-y-6 text-sm">
+        {/* --- Tiêu đề & nút chuyển tháng --- */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Quản lý lịch</h1>
@@ -221,6 +271,7 @@ function AdminCalendarPage() {
           <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>
         )}
 
+        {/* --- Lưới lịch tháng (7 cột, Th 2 → CN) --- */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
           <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-semibold text-slate-400 mb-3">
             <span>Th 2</span>
@@ -287,6 +338,7 @@ function AdminCalendarPage() {
           )}
         </div>
 
+        {/* --- Chú thích màu trạng thái ô lịch --- */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px] text-slate-600">
           <div className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded-full bg-primary/15 border border-primary/50" />
@@ -306,6 +358,7 @@ function AdminCalendarPage() {
           </div>
         </div>
 
+        {/* --- Modal chỉnh trạng thái ngày (mở/đóng + ghi chú) --- */}
         {modalDate && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">

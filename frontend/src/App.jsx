@@ -34,6 +34,14 @@ import AdminRouteGuard from './components/admin/AdminRouteGuard';
 import PageTitle from './components/PageTitle';
 import { getAuthUser } from './services/api';
 
+/**
+ * Wrapper bảo vệ các route công khai (trang chủ, đặt lịch, tra cứu…).
+ * Nếu user đã đăng nhập với vai trò nội bộ thì redirect sang khu admin,
+ * tránh staff/dentist dùng giao diện khách hàng.
+ *
+ * @param {object} props
+ * @param {React.ReactNode} props.children - Trang con được render khi được phép
+ */
 function PublicRoute({ children }) {
   const user = getAuthUser();
   const role = user?.role;
@@ -53,6 +61,7 @@ function App() {
     <BrowserRouter>
       <PageTitle />
       <Routes>
+        {/* --- Nhóm route công khai: bọc PublicRoute, chỉ dành cho khách / customer --- */}
         <Route
           path="/"
           element={(
@@ -102,13 +111,16 @@ function App() {
           )}
         />
 
+        {/* --- Trang tĩnh / lỗi: không cần PublicRoute hay AdminRouteGuard --- */}
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
         <Route path="/403" element={<ForbiddenPage />} />
 
+        {/* --- Đăng nhập admin: route riêng, không qua guard (chưa có token) --- */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
 
-        {/* Admin area với guard theo vai trò */}
+        {/* --- Khu quản trị: mỗi route bọc AdminRouteGuard (allowedRoles + permissionKey) --- */}
+        {/* --- Admin: dashboard (admin + staff có quyền dashboard) --- */}
         <Route
           path="/admin"
           element={(
@@ -117,6 +129,8 @@ function App() {
             </AdminRouteGuard>
           )}
         />
+
+        {/* --- Admin: quản lý lịch hẹn (admin + staff có quyền appointments) --- */}
         <Route
           path="/admin/appointments"
           element={(
@@ -125,6 +139,8 @@ function App() {
             </AdminRouteGuard>
           )}
         />
+
+        {/* --- Admin: bệnh nhân & hồ sơ điều trị --- */}
         <Route
           path="/admin/patients"
           element={(
@@ -133,6 +149,8 @@ function App() {
             </AdminRouteGuard>
           )}
         />
+
+        {/* --- Admin only: tài khoản, cấu hình dịch vụ, ca, settings --- */}
         <Route
           path="/admin/accounts"
           element={(
@@ -181,6 +199,8 @@ function App() {
             </AdminRouteGuard>
           )}
         />
+
+        {/* --- Admin + staff/dentist: lịch trực, calendar, profile --- */}
         <Route
           path="/admin/staff-schedules"
           element={(
@@ -214,6 +234,7 @@ function App() {
           )}
         />
 
+        {/* --- 404: mọi path không khớp route trên --- */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

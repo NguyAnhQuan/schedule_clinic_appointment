@@ -11,10 +11,18 @@ const PAGE_SIZE = 20;
 
 function AdminPatientsPage() {
   const navigate = useNavigate();
+
+  // --- Tìm kiếm & phân trang ---
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
+
+  // --- Dữ liệu danh sách & trạng thái tải ---
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // --- Modal tạo bệnh nhân mới ---
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -24,6 +32,9 @@ function AdminPatientsPage() {
     note: '',
     avatar_url: '',
   });
+  const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
+
+  // --- Modal sửa bệnh nhân ---
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({
     full_name: '',
@@ -33,11 +44,11 @@ function AdminPatientsPage() {
     avatar_url: '',
   });
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
+  // --- Modal xác nhận xoá ---
+  const [deleteId, setDeleteId] = useState(null);
+
+  // --- Mount: kiểm tra token, tải trang 1 danh sách bệnh nhân ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -47,6 +58,10 @@ function AdminPatientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Tải danh sách bệnh nhân có phân trang; merge thêm params (q, page).
+   * @param {object} [params={}]
+   */
   async function load(params = {}) {
     setLoading(true);
     setError('');
@@ -62,17 +77,20 @@ function AdminPatientsPage() {
     }
   }
 
+  /** Submit form tìm kiếm: reset về trang 1 và gọi load với từ khoá q. */
   function handleSearch(e) {
     e.preventDefault();
     setPage(1);
     load({ q, page: 1 });
   }
 
+  /** Đổi trang phân trang server-side. */
   function handlePageChange(nextPage) {
     setPage(nextPage);
     load({ q, page: nextPage });
   }
 
+  /** Tạo bệnh nhân mới qua API, đóng modal và reload danh sách. */
   async function handleCreate(e) {
     e.preventDefault();
     setCreating(true);
@@ -89,6 +107,7 @@ function AdminPatientsPage() {
     }
   }
 
+  /** Mở modal sửa: copy thông tin bệnh nhân vào editForm. */
   function startEdit(p) {
     setEditId(p.id);
     setEditForm({
@@ -100,6 +119,7 @@ function AdminPatientsPage() {
     });
   }
 
+  /** Gửi cập nhật thông tin bệnh nhân đang sửa. */
   async function handleEditSubmit(e) {
     e.preventDefault();
     if (!editId) return;
@@ -116,6 +136,7 @@ function AdminPatientsPage() {
     }
   }
 
+  /** Upload avatar khi sửa bệnh nhân; cập nhật editForm.avatar_url. */
   async function handleAvatarFileChange(file) {
     if (!file || !editId) return;
     setUploadingAvatar(true);
@@ -130,6 +151,7 @@ function AdminPatientsPage() {
     }
   }
 
+  /** Upload avatar khi tạo bệnh nhân mới; cập nhật createForm.avatar_url. */
   async function handleCreateAvatarFileChange(file) {
     if (!file) return;
     setUploadingCreateAvatar(true);
@@ -147,7 +169,7 @@ function AdminPatientsPage() {
   return (
     <AdminLayout active="patients" title="Patients">
       <div className="space-y-6 text-xs">
-        {/* Header giống Patient Directory */}
+        {/* --- Tiêu đề trang & nút thêm bệnh nhân --- */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Danh sách bệnh nhân</h1>
@@ -165,7 +187,7 @@ function AdminPatientsPage() {
           </button>
         </div>
 
-        {/* Thanh tìm kiếm + filter */}
+        {/* --- Form tìm kiếm theo tên/SĐT/email --- */}
         <form
           onSubmit={handleSearch}
           className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
@@ -207,6 +229,7 @@ function AdminPatientsPage() {
           </div>
         )}
 
+        {/* --- Bảng danh sách bệnh nhân + phân trang --- */}
         <div className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
           <div className="overflow-auto">
             <table className="min-w-full text-left border-collapse">

@@ -6,8 +6,14 @@ import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
 function TermsPage() {
+  // --- Mục đang active trên sidebar (đồng bộ khi scroll hoặc click) ---
   const [activeSection, setActiveSection] = useState('intro');
 
+  /**
+   * Cuộn mượt tới section theo id và cập nhật highlight sidebar.
+   * @param {string} id — id DOM của section (vd: terms-intro)
+   * @param {string} key — key state activeSection
+   */
   function scrollToSection(id, key) {
     const el = document.getElementById(id);
     if (el) {
@@ -20,6 +26,7 @@ function TermsPage() {
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar minimal />
       <main className="w-full max-w-5xl mx-auto px-4 py-8 grid gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
+        {/* --- Sidebar: mục lục điều khoản (sticky trên desktop) --- */}
         <aside className="space-y-3 md:sticky md:top-20 self-start">
           <h1 className="text-xl font-semibold text-text-main">Điều khoản sử dụng & Chính sách bảo mật</h1>
           <nav className="space-y-1 text-[11px] text-slate-600">
@@ -114,7 +121,9 @@ function TermsPage() {
           </nav>
         </aside>
 
+        {/* --- Nội dung chi tiết 8 mục điều khoản & chính sách bảo mật --- */}
         <section className="rounded-2xl bg-white p-6 md:p-7 shadow-sm border border-slate-100 space-y-5 text-[11px] md:text-xs text-slate-700 leading-relaxed">
+          {/* Mục 1: Giới thiệu chung */}
           <section id="terms-intro">
             <h2 className="text-sm font-semibold text-text-main mb-2">1. Giới thiệu chung</h2>
             <p className="mb-2">
@@ -133,6 +142,7 @@ function TermsPage() {
             </p>
           </section>
 
+          {/* Mục 2: Thu thập & xử lý dữ liệu cá nhân */}
           <section id="terms-data-processing">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               2. Thu thập &amp; xử lý dữ liệu cá nhân
@@ -187,6 +197,7 @@ function TermsPage() {
             </p>
           </section>
 
+          {/* Mục 3: Quyền & nghĩa vụ người dùng */}
           <section id="terms-user-rights">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               3. Quyền &amp; nghĩa vụ của người dùng
@@ -232,6 +243,7 @@ function TermsPage() {
             </ul>
           </section>
 
+          {/* Mục 4: Quyền & nghĩa vụ phòng khám */}
           <section id="terms-clinic-rights">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               4. Quyền &amp; nghĩa vụ của phòng khám
@@ -273,6 +285,7 @@ function TermsPage() {
             </ul>
           </section>
 
+          {/* Mục 5: Bảo mật & lưu trữ hồ sơ */}
           <section id="terms-security">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               5. Bảo mật, an toàn thông tin &amp; lưu trữ hồ sơ
@@ -297,6 +310,7 @@ function TermsPage() {
             </p>
           </section>
 
+          {/* Mục 6: Chia sẻ dữ liệu & bên thứ ba */}
           <section id="terms-sharing">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               6. Chia sẻ dữ liệu, bên thứ ba &amp; chuyển giao
@@ -327,6 +341,7 @@ function TermsPage() {
             </p>
           </section>
 
+          {/* Mục 7: Cookie & công nghệ theo dõi */}
           <section id="terms-cookies">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               7. Cookie và công nghệ theo dõi
@@ -339,6 +354,7 @@ function TermsPage() {
             </p>
           </section>
 
+          {/* Mục 8: Pháp lý & giải quyết tranh chấp */}
           <section id="terms-law">
             <h2 className="text-sm font-semibold text-text-main mb-2">
               8. Quy định pháp lý, sửa đổi &amp; giải quyết tranh chấp

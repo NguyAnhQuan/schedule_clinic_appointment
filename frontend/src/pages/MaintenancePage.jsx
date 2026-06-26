@@ -8,8 +8,9 @@ function MaintenancePage() {
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar minimal />
+      {/* --- Nội dung chính: thông báo bảo trì hệ thống --- */}
       <div className="flex-1 flex items-center justify-center px-4 py-10">
-        {/* Card thông báo bảo trì */}
+        {/* Card thông báo bảo trì + thông tin liên hệ hotline */}
         <div className="max-w-lg w-full rounded-3xl bg-white p-7 shadow-xl border border-slate-100 text-center space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary text-2xl">
             ⏱
@@ -20,6 +21,7 @@ function MaintenancePage() {
             cải thiện trải nghiệm đặt lịch. Trong thời gian này bạn tạm thời không thể truy cập hệ
             thống.
           </p>
+          {/* --- Khối thông tin liên hệ khi hệ thống offline --- */}
           <div className="rounded-2xl bg-bg-light px-4 py-3 text-xs text-slate-700 text-left space-y-1 border border-slate-100">
             <div className="font-semibold text-slate-800 mb-1">Liên hệ hỗ trợ đặt lịch:</div>
             <div>

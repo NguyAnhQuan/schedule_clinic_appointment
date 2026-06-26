@@ -14,10 +14,18 @@ function AdminDentistsPage() {
   const navigate = useNavigate();
   const authUser = getAuthUser();
   const role = authUser?.role;
+
+  // --- Danh sách bác sĩ & phân trang ---
   const [items, setItems] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // --- Dropdown: users chưa gắn hồ sơ bác sĩ ---
+  const [users, setUsers] = useState([]);
+
+  // --- Modal tạo bác sĩ (gắn user + chuyên khoa) ---
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -28,6 +36,9 @@ function AdminDentistsPage() {
     description: '',
     is_active: 1,
   });
+  const createAvatarInputRef = useRef(null);
+
+  // --- Modal sửa bác sĩ ---
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({
     avatar_url: '',
@@ -36,14 +47,14 @@ function AdminDentistsPage() {
     description: '',
     is_active: 1,
   });
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const createAvatarInputRef = useRef(null);
   const editAvatarInputRef = useRef(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // --- Modal xác nhận xoá (chỉ admin) ---
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
 
+  // --- Mount: kiểm tra token, tải bác sĩ & users ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -53,6 +64,10 @@ function AdminDentistsPage() {
     loadUsers();
   }, [navigate]);
 
+  /**
+   * Tải danh sách bác sĩ có phân trang.
+   * @param {object} [params={}]
+   */
   async function load(params = {}) {
     setLoading(true);
     setError('');
@@ -73,11 +88,13 @@ function AdminDentistsPage() {
     }
   }
 
+  /** Đổi trang phân trang. */
   function handlePageChange(nextPage) {
     setPage(nextPage);
     load({ page: nextPage });
   }
 
+  /** Tải toàn bộ users để dropdown gắn tài khoản khi tạo bác sĩ. */
   async function loadUsers() {
     try {
       const data = await AdminApi.getUsers();
@@ -87,9 +104,11 @@ function AdminDentistsPage() {
     }
   }
 
+  // --- Users chưa có hồ sơ bác sĩ (dùng cho dropdown tạo mới) ---
   const userIdsWithDentist = new Set(items.map((d) => d.user_id));
   const usersWithoutDentist = users.filter((u) => !userIdsWithDentist.has(u.id));
 
+  /** Tạo hồ sơ bác sĩ gắn với user đã chọn + chuyên khoa từ DENTIST_SPECIALTIES. */
   async function handleCreate(e) {
     e.preventDefault();
     if (!createForm.specialty) {
@@ -127,6 +146,7 @@ function AdminDentistsPage() {
     }
   }
 
+  /** Mở modal sửa: copy thông tin chuyên môn bác sĩ vào editForm. */
   function startEdit(d) {
     setEditId(d.id);
     setEditForm({
@@ -138,6 +158,11 @@ function AdminDentistsPage() {
     });
   }
 
+  /**
+   * Upload ảnh đại diện bác sĩ; cập nhật createForm hoặc editForm tuỳ isEdit.
+   * @param {File} file
+   * @param {boolean} isEdit
+   */
   async function handleAvatarUpload(file, isEdit) {
     if (!file) return;
     setUploadingAvatar(true);
@@ -161,6 +186,7 @@ function AdminDentistsPage() {
     }
   }
 
+  /** Cập nhật thông tin chuyên môn bác sĩ; validate chuyên khoa thuộc danh sách. */
   async function handleEditSubmit(e) {
     e.preventDefault();
     if (!editId) return;
@@ -185,6 +211,7 @@ function AdminDentistsPage() {
     }
   }
 
+  /** Xoá hồ sơ bác sĩ (chỉ admin); reload cả users để cập nhật dropdown. */
   async function handleDelete() {
     if (!deleteId) return;
     setDeleting(true);
@@ -204,6 +231,7 @@ function AdminDentistsPage() {
   return (
     <AdminLayout active="dentists" title="Quản lý bác sĩ">
       <div className="space-y-6 text-xs">
+        {/* --- Tiêu đề & nút thêm (chỉ admin, khi còn user chưa gắn) --- */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Danh sách bác sĩ</h1>
@@ -235,6 +263,7 @@ function AdminDentistsPage() {
           </div>
         )}
 
+        {/* --- Bảng danh sách bác sĩ + phân trang --- */}
         <div className="rounded-xl bg-white border border-slate-200 overflow-hidden shadow-sm">
           <div className="overflow-auto">
             <table className="min-w-full text-left border-collapse">

@@ -7,23 +7,34 @@ import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 import Pagination from '../components/Pagination';
 
+/** Số dịch vụ mỗi trang — đồng bộ với tham số limit gửi lên API */
 const PAGE_SIZE = 8;
 
+/** Trang danh sách dịch vụ công khai — có lọc theo danh mục và phân trang */
 function ServicesPage() {
+  // Mảng dịch vụ của trang hiện tại
   const [services, setServices] = useState([]);
+  // Bộ lọc danh mục: 'all' | 'general' | 'aesthetic' | 'surgery'
   const [activeFilter, setActiveFilter] = useState('all');
+  // Trang hiện tại (bắt đầu từ 1)
   const [page, setPage] = useState(1);
+  // Metadata phân trang từ API: tổng số bản ghi và limit
   const [pagination, setPagination] = useState({ total: 0, limit: PAGE_SIZE });
+  // true khi đang gọi API
   const [loading, setLoading] = useState(true);
+  // Thông báo lỗi nếu API thất bại
   const [error, setError] = useState('');
 
+  // Tải lại danh sách mỗi khi đổi trang hoặc đổi bộ lọc
   useEffect(() => {
     let mounted = true;
     setLoading(true);
     setError('');
+
     PublicApi.getServices({ page, limit: PAGE_SIZE, category: activeFilter })
       .then((data) => {
         if (!mounted) return;
+        // API có thể trả mảng thuần hoặc object { data, pagination }
         if (Array.isArray(data)) {
           setServices(data);
           setPagination({ total: data.length, limit: PAGE_SIZE });
@@ -38,11 +49,13 @@ function ServicesPage() {
       .finally(() => {
         if (mounted) setLoading(false);
       });
+
     return () => {
       mounted = false;
     };
   }, [page, activeFilter]);
 
+  // Cấu hình các nút lọc danh mục
   const filters = [
     { id: 'all', label: 'Tất cả' },
     { id: 'general', label: 'Tổng quát' },
@@ -50,6 +63,7 @@ function ServicesPage() {
     { id: 'surgery', label: 'Phẫu thuật' },
   ];
 
+  /** Đổi bộ lọc và reset về trang 1 (tránh trang trống sau khi lọc) */
   function handleFilterChange(filterId) {
     setActiveFilter(filterId);
     setPage(1);
@@ -60,6 +74,7 @@ function ServicesPage() {
       <PublicNavbar />
 
       <main className="flex-1">
+        {/* === HEADER TRANG: tiêu đề và mô tả === */}
         <section className="bg-white border-b border-slate-100 py-10">
           <div className="mx-auto max-w-6xl px-4 lg:px-8 text-center space-y-4">
             <span className="inline-block py-1 px-3 rounded-full bg-primary/10 text-primary text-[11px] font-semibold uppercase tracking-wide">
@@ -76,6 +91,7 @@ function ServicesPage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-4 lg:px-8 py-10 space-y-6">
+          {/* === BỘ LỌC DANH MỤC === */}
           <div className="flex flex-wrap justify-center gap-2">
             {filters.map((f) => (
               <button
@@ -93,6 +109,7 @@ function ServicesPage() {
             ))}
           </div>
 
+          {/* === LƯỚI DỊCH VỤ: loading / error / danh sách === */}
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {loading && (
               <div className="col-span-full text-sm text-slate-500">Đang tải dịch vụ...</div>
@@ -149,6 +166,7 @@ function ServicesPage() {
               ))}
           </div>
 
+          {/* === PHÂN TRANG: truyền page, total, limit và callback setPage === */}
           <Pagination
             page={page}
             total={pagination.total}

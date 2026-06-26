@@ -9,8 +9,12 @@ import AdminLayout from '../../components/admin/AdminLayout';
 function AdminPatientRecordsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
+
+  // --- Dữ liệu hồ sơ: patient, records, appointments chưa có hồ sơ ---
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+
+  // --- Modal tạo hồ sơ mới (gắn với lịch hẹn chưa có record) ---
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -19,6 +23,9 @@ function AdminPatientRecordsPage() {
     treatment: '',
   });
 
+  /**
+   * Tải hồ sơ bệnh án của bệnh nhân `id` từ URL params.
+   */
   async function loadRecords() {
     setError('');
     try {
@@ -29,6 +36,7 @@ function AdminPatientRecordsPage() {
     }
   }
 
+  // --- Mount & khi đổi patient id: kiểm tra token, tải hồ sơ ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -37,10 +45,12 @@ function AdminPatientRecordsPage() {
     loadRecords();
   }, [id, navigate]);
 
+  // --- Dẫn xuất từ data API ---
   const patient = data?.patient;
   const records = data?.records || [];
   const appointmentsWithoutRecords = data?.appointments_without_records || [];
 
+  /** Tạo hồ sơ bệnh án mới gắn với lịch hẹn đã chọn. */
   async function handleCreateRecord(e) {
     e.preventDefault();
     if (!createForm.appointment_id) {
@@ -64,6 +74,7 @@ function AdminPatientRecordsPage() {
   return (
     <AdminLayout active="patients" title="Patient Medical Records">
       <div className="space-y-6 text-xs">
+        {/* --- Nút quay lại danh sách bệnh nhân --- */}
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -79,6 +90,7 @@ function AdminPatientRecordsPage() {
           </div>
         )}
 
+        {/* --- Thẻ thông tin bệnh nhân & nút thêm hồ sơ --- */}
         {patient && (
           <section className="rounded-xl bg-white border border-slate-200 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-4">
@@ -131,7 +143,9 @@ function AdminPatientRecordsPage() {
           </section>
         )}
 
+        {/* --- Lưới 2 cột: timeline lịch sử khám + widget tổng quan --- */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Cột trái: danh sách lần khám (timeline) */}
           <div className="lg:col-span-2 rounded-xl bg-white border border-slate-200 p-4 md:p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
@@ -179,6 +193,7 @@ function AdminPatientRecordsPage() {
             </div>
           </div>
 
+          {/* Cột phải: thống kê nhanh (số lần khám, lần gần nhất) */}
           <div className="space-y-4">
             <div className="rounded-xl bg-white border border-slate-200 p-4 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900 mb-3">Tổng quan</h3>
@@ -202,6 +217,7 @@ function AdminPatientRecordsPage() {
           </div>
         </section>
 
+        {/* --- Modal tạo hồ sơ bệnh án mới --- */}
         {showCreate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5">

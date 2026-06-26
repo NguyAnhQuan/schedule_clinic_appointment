@@ -13,6 +13,10 @@ import { PublicApi, getAuthToken, getAuthUser, authHeaders, FILE_BASE } from '..
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
+/**
+ * Chuyển đối tượng Date sang chuỗi YYYY-MM-DD theo múi giờ máy người dùng.
+ * Dùng cho lịch, so sánh ngày và gửi API (work_date, appointment_time).
+ */
 function formatLocalDate(date) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -23,6 +27,8 @@ function formatLocalDate(date) {
 
 function BookAppointmentPage() {
   const navigate = useNavigate();
+
+  // --- Nhóm state form: toàn bộ dữ liệu người dùng nhập/chọn qua 3 bước ---
   const [form, setForm] = useState({
     full_name: '',
     phone: '',
@@ -35,16 +41,23 @@ function BookAppointmentPage() {
     appointment_time: '',
     note: '',
   });
+
+  // --- UI & gửi form: dùng tài khoản đã đăng nhập, trạng thái submit, thông báo lỗi ---
   const [useAccount, setUseAccount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [services, setServices] = useState([]);
-  const [dentistsForService, setDentistsForService] = useState([]);
-  const [availableDates, setAvailableDates] = useState([]);
-  const [shiftsForDate, setShiftsForDate] = useState([]);
-  const [dentistsForBooking, setDentistsForBooking] = useState([]);
-  const [slots, setSlots] = useState([]);
+
+  // --- Dữ liệu từ API: mỗi mảng được load bởi useEffect tương ứng theo bước chọn ---
+  const [services, setServices] = useState([]); // Danh sách dịch vụ (Bước 1)
+  const [dentistsForService, setDentistsForService] = useState([]); // BS làm được dịch vụ đã chọn
+  const [availableDates, setAvailableDates] = useState([]); // Ngày còn slot (Bước 2)
+  const [shiftsForDate, setShiftsForDate] = useState([]); // Ca sáng/chiều trong ngày
+  const [dentistsForBooking, setDentistsForBooking] = useState([]); // BS trực ca còn giờ trống
+  const [slots, setSlots] = useState([]); // Giờ bắt đầu khả dụng (8:00, 9:00…)
+
   const isLoggedIn = !!getAuthToken();
+
+  // --- Lịch tháng đang hiển thị (mặc định tháng hiện tại, ngày 1) ---
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -169,6 +182,7 @@ function BookAppointmentPage() {
     }
   }, [isLoggedIn, useAccount]);
 
+  // --- Giá trị suy ra từ form + API (dùng hiển thị tóm tắt và dropdown) ---
   const selectedService = services.find((s) => String(s.id) === String(form.service_id));
   const selectedShift = shiftsForDate.find((s) => String(s.id) === String(form.shift_id));
   const selectedDentist =
@@ -178,6 +192,11 @@ function BookAppointmentPage() {
   const dentistOptions =
     form.shift_id && form.work_date ? dentistsForBooking : dentistsForService;
 
+  /**
+   * Xử lý mọi input/select trong form.
+   * Khi đổi trường “cấp cao” (dịch vụ, ngày, ca, bác sĩ) thì reset các lựa chọn phụ thuộc
+   * để tránh gửi lịch với tổ hợp ngày/ca/giờ không còn hợp lệ.
+   */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => {
@@ -212,6 +231,10 @@ function BookAppointmentPage() {
     });
   };
 
+  /**
+   * Gửi POST đặt lịch: kiểm tra đủ Bước 1–2, ghép appointment_time từ ngày + slot,
+   * gắn token nếu dùng tài khoản, rồi chuyển sang trang thành công.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -247,6 +270,7 @@ function BookAppointmentPage() {
     }
   };
 
+  // --- Biến phục vụ render lịch tháng (ô trống đầu tháng, ngày trong tháng) ---
   const calendarMonthDate = new Date(calendarMonth);
   const calYear = calendarMonthDate.getFullYear();
   const calMonth = calendarMonthDate.getMonth();
@@ -265,11 +289,13 @@ function BookAppointmentPage() {
     calendarCells.push(day);
   }
 
+  /** Hiển thị nhãn tháng trên lịch, ví dụ "tháng 6 năm 2026" (locale vi-VN). */
   function formatMonthLabel(dateStr) {
     const d = new Date(dateStr);
     return d.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
   }
 
+  /** Lùi/tiến một tháng trên lịch (delta = -1 hoặc +1), luôn đặt về ngày 1. */
   function changeCalendarMonth(delta) {
     const d = new Date(calendarMonth);
     d.setMonth(d.getMonth() + delta);
@@ -288,11 +314,13 @@ function BookAppointmentPage() {
 
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
+      {/* Khung trang: navbar + form 2 cột (nội dung trái, tóm tắt phải) + footer */}
       <PublicNavbar />
 
       <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8">
         <form onSubmit={handleSubmit}>
           <div className="mx-auto max-w-6xl grid gap-8 lg:grid-cols-12">
+            {/* Cột trái: tiêu đề + 3 bước đặt lịch */}
             <section className="space-y-6 lg:col-span-8">
               <div>
                 <h1 className="text-3xl md:text-4xl font-bold text-text-main mb-2">Đặt lịch khám</h1>
@@ -303,7 +331,8 @@ function BookAppointmentPage() {
               </div>
 
               <div className="space-y-6">
-              {/* Bước 1: Dịch vụ & ưu tiên bác sĩ */}
+              {/* Bước 1: Chọn dịch vụ (bắt buộc) và bác sĩ ưu tiên (tuỳ chọn).
+                  Đổi service_id kích hoạt useEffect load dentistsForService và availableDates. */}
               <section className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
@@ -376,7 +405,9 @@ function BookAppointmentPage() {
                 </div>
               </section>
 
-              {/* Bước 2: Ngày & giờ */}
+              {/* Bước 2: Lịch tháng → chọn ngày → ca → (bác sĩ nếu chưa ưu tiên) → giờ cụ thể.
+                  Ô ngày disabled nếu quá khứ hoặc không nằm trong availableDates.
+                  Ca hiển thị slots_left; giờ chia buổi sáng (<12h) và chiều. */}
               <section className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
@@ -587,7 +618,8 @@ function BookAppointmentPage() {
                 </div>
               </section>
 
-              {/* Bước 3: Thông tin bệnh nhân */}
+              {/* Bước 3: Họ tên, SĐT, email, ghi chú. Nếu đã đăng nhập có thể bật useAccount
+                  để tự điền từ getAuthUser() (readonly). Nút submit nằm ở sidebar tóm tắt. */}
               <section className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 md:p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
@@ -681,6 +713,7 @@ function BookAppointmentPage() {
             </div>
             </section>
 
+            {/* Cột phải: tóm tắt lựa chọn realtime + nút xác nhận + lưu ý cho bệnh nhân */}
             <aside className="space-y-4 lg:col-span-4">
               <div className="rounded-2xl bg-white p-5 shadow-sm border border-primary/10">
                 <h2 className="text-sm font-semibold text-text-main mb-4 border-b border-slate-100 pb-2">

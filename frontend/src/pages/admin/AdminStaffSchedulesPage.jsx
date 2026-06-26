@@ -6,6 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, getAuthUser } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 
+/**
+ * Định dạng nhãn ngày ngắn (Th 2, 26/06) cho lịch trực.
+ * @param {string} dateStr — YYYY-MM-DD
+ * @returns {string}
+ */
 function formatDateLabel(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('vi-VN', {
@@ -15,6 +20,11 @@ function formatDateLabel(dateStr) {
   });
 }
 
+/**
+ * Chuyển Date sang chuỗi YYYY-MM-DD theo múi giờ local.
+ * @param {Date|string|number} date
+ * @returns {string}
+ */
 function toLocalDateStr(date) {
   const d = new Date(date);
   const year = d.getFullYear();
@@ -28,15 +38,20 @@ function AdminStaffSchedulesPage() {
   const authUser = getAuthUser();
   const role = authUser?.role;
 
+  // --- Tìm kiếm bác sĩ theo tên/chuyên khoa ---
   const [search, setSearch] = useState('');
+
+  // --- Dữ liệu lịch: dates (10 ngày), shifts, assignments, dentists, stats ---
   const [data, setData] = useState({ dates: [], shifts: [], assignments: [], dentists: [], stats: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // --- Modal chỉnh lịch trực 1 bác sĩ (map date|shiftId → checked) ---
   const [editingDentist, setEditingDentist] = useState(null);
   const [modalAssignments, setModalAssignments] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // --- Mount: kiểm tra token, tải lịch phân công ---
   useEffect(() => {
     if (!getAuthToken()) {
       navigate('/admin/login');
@@ -45,6 +60,9 @@ function AdminStaffSchedulesPage() {
     load();
   }, [navigate]);
 
+  /**
+   * Tải lịch phân ca 10 ngày tới; bác sĩ chỉ thấy hồ sơ của chính mình.
+   */
   async function load() {
     setLoading(true);
     setError('');
@@ -72,12 +90,17 @@ function AdminStaffSchedulesPage() {
     }
   }
 
+  /** Lấy các assignment đang active (status = assigned) của 1 bác sĩ. */
   function getAssignmentsForDentist(dentistId) {
     return (data.assignments || []).filter(
       (a) => Number(a.dentist_id) === Number(dentistId) && a.status === 'assigned'
     );
   }
 
+  /**
+   * Tóm tắt lịch 1 ngày: Off duty | khung giờ ca trực | "Ngày hôm nay" nếu hôm nay và không có ca.
+   * @returns {{ label: string, type: 'off'|'on'|'today' }}
+   */
   function getSummaryForDay(dentistId, dateStr) {
     const items = getAssignmentsForDentist(dentistId).filter((a) => a.work_date === dateStr);
     if (!items.length) {
@@ -101,14 +124,17 @@ function AdminStaffSchedulesPage() {
 
   const todayStr = toLocalDateStr(new Date());
 
+  /** Ngày đã qua (không cho sửa lịch trực). */
   function isPast(dateStr) {
     return dateStr < todayStr;
   }
 
+  /** Ngày hôm nay hoặc quá khứ — khoá chỉnh sửa trong modal. */
   function isLocked(dateStr) {
     return dateStr <= todayStr;
   }
 
+  /** Mở modal: xây map modalAssignments từ assignments hiện tại của bác sĩ. */
   function openEditModal(dentist) {
     if (!data.dates.length) {
       return;
@@ -132,6 +158,7 @@ function AdminStaffSchedulesPage() {
     setModalAssignments(map);
   }
 
+  /** Bật/tắt 1 ô ca trong modal (key = date|shiftId). */
   function toggleModalCell(date, shiftId) {
     const key = `${date}|${shiftId}`;
     setModalAssignments((prev) => ({
@@ -140,6 +167,9 @@ function AdminStaffSchedulesPage() {
     }));
   }
 
+  /**
+   * Lưu thay đổi lịch trực: chỉ gửi payload cho các ô đã đổi (merge dentist_ids theo ca/ngày).
+   */
   async function handleSaveSchedule() {
     if (!editingDentist || !data.dates.length || !data.shifts.length) return;
     setSaving(true);
@@ -193,6 +223,7 @@ function AdminStaffSchedulesPage() {
     }
   }
 
+  /** Bật/tắt trạng thái is_active của bác sĩ (toggle nhanh trên card). */
   async function toggleActive(dentist) {
     try {
       await AdminApi.updateDentist(dentist.id, { is_active: !dentist.is_active });
@@ -202,6 +233,7 @@ function AdminStaffSchedulesPage() {
     }
   }
 
+  /** Danh sách bác sĩ sau khi lọc theo search (tên/chuyên khoa). */
   const filteredDentists = useMemo(() => {
     const list = data.dentists || [];
     if (!search.trim()) return list;
@@ -216,6 +248,7 @@ function AdminStaffSchedulesPage() {
   return (
     <AdminLayout active="staff-schedules" title="Quản lý nhân sự & lịch trực">
       <div className="space-y-6 text-sm">
+        {/* --- Tiêu đề & ô tìm kiếm bác sĩ --- */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-900">Dentist Management</h1>
@@ -242,6 +275,7 @@ function AdminStaffSchedulesPage() {
           <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</div>
         )}
 
+        {/* --- Lưới card bác sĩ hoặc trạng thái đang tải --- */}
         {loading ? (
           <p className="text-slate-500">Đang tải dữ liệu nhân sự và lịch trực...</p>
         ) : (
@@ -361,6 +395,7 @@ function AdminStaffSchedulesPage() {
           </div>
         )}
 
+        {/* --- Modal chỉnh lịch trực theo ngày/ca --- */}
         {editingDentist && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">

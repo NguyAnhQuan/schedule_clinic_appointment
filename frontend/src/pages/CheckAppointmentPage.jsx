@@ -6,6 +6,7 @@ import { PublicApi, AdminApi, getAuthToken, getAuthUser, authHeaders } from '../
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 
+/** Ánh xạ mã trạng thái API → nhãn tiếng Việt hiển thị cho user */
 const STATUS_LABELS = {
   pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
@@ -16,22 +17,38 @@ const STATUS_LABELS = {
   no_show: 'Không đến',
 };
 
+/** Trang tra cứu lịch hẹn công khai — form SĐT + mã lịch; hỗ trợ đánh giá sau khám */
 function CheckAppointmentPage() {
+  // Số điện thoại nhập vào form tra cứu
   const [phone, setPhone] = useState('');
+  // Mã lịch hẹn (ID) nhập vào form
   const [code, setCode] = useState('');
+  // true khi đang gọi API tra cứu
   const [loading, setLoading] = useState(false);
+  // Thông báo lỗi tra cứu
   const [error, setError] = useState('');
+  // Kết quả tra cứu thành công (object lịch hẹn)
   const [result, setResult] = useState(null);
+  // Danh sách lịch của user đã đăng nhập (tải riêng nếu có token)
   const [myAppointments, setMyAppointments] = useState([]);
+  // Lịch đang mở modal đánh giá (null = đóng)
   const [rateModal, setRateModal] = useState(null);
+  // Số sao user chọn (1–5)
   const [ratingStars, setRatingStars] = useState(0);
+  // Nội dung nhận xét tùy chọn
   const [ratingComment, setRatingComment] = useState('');
+  // true khi đang gửi đánh giá
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  // true sau khi gửi đánh giá thành công
   const [ratingDone, setRatingDone] = useState(false);
+  // Lỗi khi gửi đánh giá
   const [ratingError, setRatingError] = useState('');
+  // Đánh giá đã tồn tại (nếu user đã đánh giá trước đó)
   const [existingRating, setExistingRating] = useState(null);
+  // Kiểm tra đăng nhập qua token trong localStorage
   const isLoggedIn = !!getAuthToken();
 
+  // Nếu đã đăng nhập, tải danh sách lịch của tài khoản
   useEffect(() => {
     if (!isLoggedIn) return;
     AdminApi.getMyAppointments()
@@ -39,6 +56,7 @@ function CheckAppointmentPage() {
       .catch(() => setMyAppointments([]));
   }, [isLoggedIn]);
 
+  // Mỗi khi mở modal đánh giá: reset form và kiểm tra đã có đánh giá chưa
   useEffect(() => {
     if (!rateModal) return;
     setRatingStars(0);
@@ -50,6 +68,7 @@ function CheckAppointmentPage() {
       .catch(() => setExistingRating(null));
   }, [rateModal]);
 
+  /** Gửi đánh giá sao + nhận xét cho lịch trong rateModal */
   async function handleSubmitRating(e) {
     e.preventDefault();
     if (!rateModal || ratingStars < 1) return;
@@ -60,6 +79,7 @@ function CheckAppointmentPage() {
       const payload = {
         stars: ratingStars,
         comment: ratingComment.trim() || undefined,
+        // SĐT dùng xác minh quyền đánh giá — lấy từ lịch, user hoặc form tra cứu
         phone: (rateModal.phone || user?.phone || phone || '').trim() || undefined,
       };
       if (!payload.phone) {
@@ -67,6 +87,7 @@ function CheckAppointmentPage() {
         setRatingSubmitting(false);
         return;
       }
+      // Đã đăng nhập thì gửi kèm header Authorization
       const opts = isLoggedIn ? { headers: authHeaders() } : {};
       await PublicApi.submitAppointmentRating(rateModal.id, payload, opts);
       setRatingDone(true);
@@ -79,6 +100,7 @@ function CheckAppointmentPage() {
     }
   }
 
+  /** Submit form tra cứu — gọi API getAppointmentStatus(phone, code) */
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
@@ -97,14 +119,16 @@ function CheckAppointmentPage() {
   return (
     <div className="min-h-screen bg-bg-light flex flex-col">
       <PublicNavbar />
+
       <main className="flex-1 flex items-center justify-center px-4 relative overflow-hidden">
-        {/* nền tròn mờ như thiết kế */}
+        {/* Nền trang trí — vòng tròn mờ, không nhận sự kiện chuột */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-40">
           <div className="absolute -top-24 -right-24 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
           <div className="absolute top-1/2 -left-24 w-60 h-60 bg-sky-300/20 rounded-full blur-3xl" />
         </div>
 
         <div className="w-full max-w-md z-10 space-y-6">
+          {/* === TIÊU ĐỀ TRANG === */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-text-main">Tra cứu lịch hẹn</h1>
             <p className="text-xs text-slate-600">
@@ -113,6 +137,7 @@ function CheckAppointmentPage() {
             </p>
           </div>
 
+          {/* === DANH SÁCH LỊCH CỦA USER ĐÃ ĐĂNG NHẬP (nếu có) === */}
           {isLoggedIn && myAppointments.length > 0 && (
             <div className="rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
               <div className="text-sm font-semibold text-text-main mb-3">
@@ -159,6 +184,7 @@ function CheckAppointmentPage() {
             </div>
           )}
 
+          {/* === FORM TRA CỨU: SĐT + mã lịch → API getAppointmentStatus === */}
           <form
             onSubmit={handleSubmit}
             className="space-y-4 rounded-2xl bg-white p-5 shadow-xl border border-slate-100"
@@ -201,6 +227,7 @@ function CheckAppointmentPage() {
             </button>
           </form>
 
+          {/* === KẾT QUẢ TRA CỨU === */}
           {result && (
             <div className="rounded-2xl bg-white p-4 shadow-sm border border-primary/20 text-xs text-slate-700 space-y-2">
               <div className="flex items-center justify-between">
@@ -250,7 +277,7 @@ function CheckAppointmentPage() {
             </div>
           )}
 
-          {/* Modal đánh giá trải nghiệm */}
+          {/* === MODAL ĐÁNH GIÁ TRẢI NGHIỆM === */}
           {rateModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
               <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
@@ -364,4 +391,3 @@ function CheckAppointmentPage() {
 }
 
 export default CheckAppointmentPage;
-
