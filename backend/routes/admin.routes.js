@@ -1,3 +1,7 @@
+/**
+ * FILE_GUIDE: admin.routes.js — URL /api/admin/*
+ * Gắn authMiddleware + authorizeRoles / authorizeStaffPermission trước handler.
+ */
 const express = require('express');
 const router = express.Router();
 const { authMiddleware, authorizeRoles } = require('../middlewares/auth');

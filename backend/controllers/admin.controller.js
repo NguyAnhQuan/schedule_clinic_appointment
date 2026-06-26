@@ -1,3 +1,11 @@
+/**
+ * FILE_GUIDE: admin.controller.js — API quản trị (CRUD, dashboard, lịch)
+ * =============================================================================
+ * Yêu cầu JWT + role (admin/staff/dentist tùy endpoint).
+ * listAppointments / listPatients: có phân trang page, limit.
+ * updateAppointmentStatus: kiểm tra chuyển trạng thái hợp lệ (APPOINTMENT_STATUS_TRANSITIONS).
+ * expirePastAppointments: tự gọi khi load lịch — quá ngày → no_show.
+ */
 const { pool } = require('../config/db');
 const { normalizePhone, normalizePhoneInput, phonesMatch } = require('../utils/phone');
 const { getSecuritySettings, invalidateClinicSettingsCache } = require('../utils/clinicSettings');

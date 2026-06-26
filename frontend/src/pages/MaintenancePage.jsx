@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: MaintenancePage.jsx — Trang bảo trì
+ */
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';
 

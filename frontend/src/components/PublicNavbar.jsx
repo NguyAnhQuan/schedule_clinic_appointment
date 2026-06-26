@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: PublicNavbar.jsx — Menu điều hướng trang khách
+ */
 import { useState, useEffect } from 'react';
 import { AdminApi, getAuthToken, getAuthUser, setAuthUser, setAuthToken, FILE_BASE } from '../services/api';
 

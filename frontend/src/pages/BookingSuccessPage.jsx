@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: BookingSuccessPage.jsx — Màn hình sau khi đặt lịch thành công
+ */
 import { useParams, Link } from 'react-router-dom';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';

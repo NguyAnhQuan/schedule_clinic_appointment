@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminLoginPage.jsx — Form đăng nhập quản trị → AdminApi.login
+ */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi } from '../../services/api';

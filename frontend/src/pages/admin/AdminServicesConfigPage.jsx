@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminServicesConfigPage.jsx — CRUD dịch vụ + gắn bác sĩ thực hiện
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, FILE_BASE } from '../../services/api';

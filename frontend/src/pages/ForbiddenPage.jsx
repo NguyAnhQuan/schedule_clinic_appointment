@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: ForbiddenPage.jsx — 403 không có quyền
+ */
 import { useNavigate } from 'react-router-dom';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';

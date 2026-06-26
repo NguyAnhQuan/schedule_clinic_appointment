@@ -1,3 +1,7 @@
+/**
+ * FILE_GUIDE: upload.js — Multer cấu hình upload file (avatar, ảnh dịch vụ)
+ * Lưu vào thư mục uploads/, trả URL tương đối /uploads/...
+ */
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');

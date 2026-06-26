@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: TermsPage.jsx — Điều khoản sử dụng
+ */
 import { useState } from 'react';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';

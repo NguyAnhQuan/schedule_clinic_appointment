@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: CheckAppointmentPage.jsx — Tra cứu lịch bằng SĐT + mã lịch
+ */
 import { useState, useEffect } from 'react';
 import { PublicApi, AdminApi, getAuthToken, getAuthUser, authHeaders } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';

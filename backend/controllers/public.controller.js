@@ -1,3 +1,17 @@
+/**
+ * FILE_GUIDE: public.controller.js — Logic API phía khách (đặt lịch, tra cứu)
+ * =============================================================================
+ * Các hàm chính:
+ *   getServices          — Danh sách dịch vụ (+ dentist_ids)
+ *   getDentists          — Lọc theo service_id, specialty, phân trang
+ *   getDentistsByDepartment — 3 BS/khoa cho trang chủ
+ *   getAvailableDates    — Ngày có BS trực + làm được dịch vụ
+ *   getShiftsForDate     — Ca trong ngày + số giờ trống (appointmentSlots.js)
+ *   getDentistsForBooking— BS trong ca còn slot
+ *   getSlotsForBooking   — Giờ cụ thể 8:00, 9:00…
+ *   createAppointment    — Transaction: validate → tìm BN → INSERT pending
+ *   getAppointmentStatus — Tra cứu bằng SĐT + mã lịch
+ */
 const { pool } = require('../config/db');
 const { normalizePhone, normalizePhoneInput, phonesMatch } = require('../utils/phone');
 const {

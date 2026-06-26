@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: clinicSettings.js — Đọc cài đặt phòng khám (cache trong memory)
+ */
 const { pool } = require('../config/db');
 
 let cached = null;

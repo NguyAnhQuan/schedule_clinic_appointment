@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: HomePage.jsx — Trang chủ: hero, dịch vụ nổi bật, đội ngũ theo khoa
+ */
 import { useEffect, useState } from 'react';
 import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';

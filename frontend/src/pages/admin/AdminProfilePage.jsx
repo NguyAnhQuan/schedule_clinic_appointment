@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminProfilePage.jsx — Sửa thông tin cá nhân admin/staff
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, FILE_BASE, getAuthToken, getAuthUser, setAuthUser } from '../../services/api';

@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminLayout.jsx — Khung sidebar + header trang quản trị
+ */
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FILE_BASE, getAuthToken, getAuthUser, getStoredRolePermissions, setAuthToken, setAuthUser } from '../../services/api';

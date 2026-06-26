@@ -1,3 +1,10 @@
+/**
+ * FILE_GUIDE: App.jsx — Định nghĩa route (React Router)
+ * =============================================================================
+ * PublicRoute: chặn staff/dentist vào giao diện khách.
+ * AdminRouteGuard: bọc các trang /admin/*.
+ * Xem Route path ↔ component tương ứng bên dưới.
+ */
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import ServicesPage from './pages/ServicesPage';

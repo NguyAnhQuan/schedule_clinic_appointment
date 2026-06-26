@@ -1,3 +1,10 @@
+/**
+ * FILE_GUIDE: auth.controller.js — Đăng nhập, đăng ký, profile
+ * =============================================================================
+ * Login: bcrypt so sánh password_hash, trả JWT.
+ * Register: tạo user role customer.
+ * getMe / updateProfile: đọc từ token + bảng users.
+ */
 const bcrypt = require('bcrypt');
 const { pool } = require('../config/db');
 const { generateToken } = require('../middlewares/auth');

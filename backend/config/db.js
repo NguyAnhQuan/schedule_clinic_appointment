@@ -1,3 +1,12 @@
+/**
+ * FILE_GUIDE: db.js — Kết nối MySQL, schema, seed dữ liệu mẫu
+ * =============================================================================
+ * - pool: connection pool dùng xuyên suốt controllers.
+ * - initDatabase(): tạo DB/bảng nếu chưa có, migration cột, seed shifts/services…
+ * - enrichDemoData(): 12 bác sĩ (4 khoa × 3), bệnh nhân, lịch hẹn mẫu.
+ * - Các hàm ensure*: idempotent — chạy lại không nhân đôi dữ liệu.
+ * - DEMO_PASSWORD: mật khẩu mặc định tài khoản demo (admin123).
+ */
 const mysql = require('mysql2/promise');
 
 const DB_NAME = process.env.DB_NAME || 'dental_clinic';

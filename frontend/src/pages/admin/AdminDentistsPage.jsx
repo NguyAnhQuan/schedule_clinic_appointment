@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminDentistsPage.jsx — Gắn user với hồ sơ bác sĩ, chọn chuyên khoa dropdown
+ */
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, getAuthUser, FILE_BASE } from '../../services/api';

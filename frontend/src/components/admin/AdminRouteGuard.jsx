@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminRouteGuard.jsx — Redirect /admin/login nếu không có token
+ */
 import { Navigate, useLocation } from 'react-router-dom';
 import { getAuthToken, getAuthUser, getStoredRolePermissions } from '../../services/api';
 

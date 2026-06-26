@@ -1,3 +1,12 @@
+/**
+ * FILE_GUIDE: BookAppointmentPage.jsx — Trang đặt lịch khám (luồng chính)
+ * =============================================================================
+ * State form: service_id, work_date, shift_id, dentist_id, slot_time…
+ * useEffect gọi API theo từng bước (xem docs/HUONG_DAN_CODE.md).
+ * Bước 1: chọn dịch vụ → load bác sĩ phù hợp (service_id).
+ * Bước 2: chọn ngày → ca → bác sĩ → giờ (mỗi bước 1 API).
+ * Bước 3: nhập họ tên, SĐT → POST createAppointment → chuyển trang thành công.
+ */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PublicApi, getAuthToken, getAuthUser, authHeaders, FILE_BASE } from '../services/api';
@@ -42,10 +51,12 @@ function BookAppointmentPage() {
     return formatLocalDate(d);
   });
 
+  // --- Tải danh sách dịch vụ khi vào trang ---
   useEffect(() => {
     PublicApi.getServices().then(setServices).catch(() => setServices([]));
   }, []);
 
+  // --- Khi chọn dịch vụ: chỉ load bác sĩ được gắn dịch vụ đó (API service_id) ---
   useEffect(() => {
     if (!form.service_id) {
       setDentistsForService([]);
@@ -73,6 +84,7 @@ function BookAppointmentPage() {
     }
   }, [dentistsForService, form.dentist_id]);
 
+  // --- Ngày khả dụng: có ít nhất 1 BS trực và làm được dịch vụ (có thể lọc theo BS ưu tiên) ---
   useEffect(() => {
     if (form.service_id) {
       PublicApi.getAvailableDates(form.service_id, form.dentist_id || undefined)
@@ -105,6 +117,7 @@ function BookAppointmentPage() {
     }
   }, [availableDates, form.work_date]);
 
+  // --- Sau khi chọn ngày: load ca (sáng/chiều) + số giờ trống theo duration dịch vụ ---
   useEffect(() => {
     if (form.service_id && form.work_date) {
       PublicApi.getShiftsForDate(form.service_id, form.work_date, form.dentist_id || undefined)
@@ -115,6 +128,7 @@ function BookAppointmentPage() {
     }
   }, [form.service_id, form.work_date, form.dentist_id]);
 
+  // --- Sau khi chọn ca: danh sách bác sĩ trực ca đó còn slot ---
   useEffect(() => {
     if (form.service_id && form.shift_id && form.work_date) {
       PublicApi.getDentistsForBooking(form.service_id, form.shift_id, form.work_date)
@@ -125,6 +139,7 @@ function BookAppointmentPage() {
     }
   }, [form.service_id, form.shift_id, form.work_date]);
 
+  // --- Sau khi chọn bác sĩ: các giờ bắt đầu cụ thể (8:00, 9:00…) không trùng lịch ---
   useEffect(() => {
     if (form.service_id && form.dentist_id && form.shift_id && form.work_date) {
       PublicApi.getSlotsForBooking(

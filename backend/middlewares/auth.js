@@ -1,3 +1,11 @@
+/**
+ * FILE_GUIDE: auth.js — Xác thực JWT (JSON Web Token)
+ * ----------------------------------------------------------------
+ * - generateToken: tạo token sau login (payload: id, role, email…).
+ * - authMiddleware: bắt buộc Bearer token — dùng cho /api/admin/*.
+ * - optionalAuthMiddleware: có token thì gắn req.user, không có vẫn cho qua (đặt lịch).
+ * - authorizeRoles('admin'): chỉ role được liệt kê mới truy cập.
+ */
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 

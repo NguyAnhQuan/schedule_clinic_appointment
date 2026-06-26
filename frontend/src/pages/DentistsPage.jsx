@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: DentistsPage.jsx — Danh sách bác sĩ, tìm kiếm, modal chi tiết
+ */
 import { useEffect, useState } from 'react';
 import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';

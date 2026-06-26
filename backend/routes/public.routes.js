@@ -1,3 +1,12 @@
+/**
+ * FILE_GUIDE: public.routes.js — URL API công khai (không bắt buộc đăng nhập)
+ * ----------------------------------------------------------------
+ * Gắn dưới prefix /api (xem server.js).
+ * Thứ tự route quan trọng: /dentists/by-department phải đứng TRƯỚC /dentists/:id
+ * để Express không hiểu "by-department" là id.
+ *
+ * POST /appointments dùng optionalAuthMiddleware: khách có thể gửi JWT nếu đã login.
+ */
 const express = require('express');
 const router = express.Router();
 const { optionalAuthMiddleware } = require('../middlewares/auth');
@@ -30,4 +39,3 @@ router.get('/appointments/:id/rating', getAppointmentRating);
 router.post('/appointments/:id/rate', optionalAuthMiddleware, submitAppointmentRating);
 
 module.exports = router;
-

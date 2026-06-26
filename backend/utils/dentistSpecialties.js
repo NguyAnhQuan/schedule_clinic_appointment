@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: dentistSpecialties.js — Danh sách chuyên khoa cố định (dropdown admin)
+ */
 /** Danh sách chuyên khoa chuẩn — đồng bộ seed DB và form admin. */
 const DENTIST_SPECIALTIES = [
   'Nha khoa tổng quát',

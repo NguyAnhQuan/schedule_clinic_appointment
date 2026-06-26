@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: PageTitle.jsx — Đổi document.title theo URL
+ */
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 

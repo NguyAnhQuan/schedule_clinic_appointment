@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: password.js — Validate độ mạnh mật khẩu (theo clinic settings)
+ */
 async function validatePassword(password, security = {}) {
   const value = String(password || '');
   if (value.length < 6) {

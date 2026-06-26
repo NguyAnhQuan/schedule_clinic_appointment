@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminPatientRecordDetailPage.jsx — Chi tiết 1 hồ sơ bệnh án
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AdminApi, getAuthToken, resolveMediaUrl } from '../../services/api';

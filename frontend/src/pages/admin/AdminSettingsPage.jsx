@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminSettingsPage.jsx — Cài đặt phòng khám, bảo mật
+ */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, FILE_BASE, getAuthToken } from '../../services/api';

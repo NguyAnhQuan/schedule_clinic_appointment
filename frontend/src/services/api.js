@@ -1,3 +1,12 @@
+/**
+ * FILE_GUIDE: api.js — Lớp gọi API từ React sang backend
+ * ----------------------------------------------------------------
+ * - apiRequest: fetch JSON, tự xử lý lỗi 401 (xóa token).
+ * - PublicApi: endpoint khách (đặt lịch, tra cứu…).
+ * - AdminApi: endpoint quản trị (kèm authHeaders()).
+ * - Token lưu localStorage qua setAuthToken / getAuthToken.
+ * - VITE_API_BASE_URL trong .env production trỏ tới domain backend.
+ */
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4100/api';
 export const FILE_BASE = API_BASE.replace(/\/api$/, '');
 

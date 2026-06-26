@@ -1,3 +1,7 @@
+/**
+ * FILE_GUIDE: staffPermissions.js — Phân quyền chi tiết cho role staff
+ * Kiểm tra bảng staff_permissions trước khi cho staff xem/sửa module.
+ */
 const { getStaffPermissions } = require('../utils/clinicSettings');
 
 function authorizeStaffPermission(permissionKey) {

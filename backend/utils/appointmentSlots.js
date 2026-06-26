@@ -1,3 +1,16 @@
+/**
+ * FILE_GUIDE: appointmentSlots.js — Tính toán khung giờ đặt lịch
+ * ----------------------------------------------------------------
+ * Dùng khi:
+ *   - Hiển thị "còn X giờ trống" cho mỗi ca (getShiftsForDate)
+ *   - Liệt kê giờ 8:00, 8:30… (getSlotsForBooking)
+ *   - Chặn đặt trùng lịch (createAppointment)
+ *
+ * Ý tưởng: mỗi lịch hẹn là một khoảng [bắt đầu, bắt đầu + duration].
+ * Hai khoảng chồng nhau nếu: start1 < end2 VÀ start2 < end1.
+ */
+
+/** Chuyển chuỗi "HH:MM" thành số phút từ 0h (vd: "08:30" → 510). */
 function parseTimeToMinutes(timeStr) {
   const raw = String(timeStr || '').slice(0, 5);
   const [h, m] = raw.split(':').map(Number);
@@ -5,7 +18,10 @@ function parseTimeToMinutes(timeStr) {
   return h * 60 + m;
 }
 
-/** Parse TIME/DATETIME từ MySQL (mysql2 có thể trả về đối tượng Date). */
+/**
+ * Parse cột TIME của MySQL.
+ * mysql2 đôi khi trả về object Date (năm 1970) thay vì chuỗi — dùng getHours/getMinutes.
+ */
 function shiftTimeToMinutes(value) {
   if (value == null) return 0;
   if (value instanceof Date) {
@@ -19,6 +35,7 @@ function shiftTimeToMinutes(value) {
   return parseTimeToMinutes(s);
 }
 
+/** Lấy phút-bắt-đầu từ cột DATETIME appointment_time (giờ máy chủ/local). */
 function appointmentTimeToMinutes(value) {
   if (value instanceof Date) {
     return value.getHours() * 60 + value.getMinutes();
@@ -34,18 +51,21 @@ function parseAppointmentStartMinutes(appointmentTime) {
   return parseTimeToMinutes(timePart);
 }
 
+/** Hai khoảng thời gian có giao nhau không? (không tính chạm đuôi). */
 function intervalsOverlap(start1, duration1, start2, duration2) {
   const end1 = start1 + duration1;
   const end2 = start2 + duration2;
   return start1 < end2 && start2 < end1;
 }
 
+/** Khung giờ mới có đè lên bất kỳ lịch đã đặt nào không? */
 function slotOverlapsBooked(slotStartMin, duration, bookedIntervals) {
   return bookedIntervals.some((b) =>
     intervalsOverlap(slotStartMin, duration, b.startMin, b.duration)
   );
 }
 
+/** Lấy danh sách lịch đã đặt của 1 bác sĩ trong 1 ca + 1 ngày (trừ đã hủy/không đến). */
 async function getBookedIntervals(conn, dentistId, shiftId, workDate) {
   const [rows] = await conn.query(
     `SELECT a.appointment_time, s.duration_minutes
@@ -55,15 +75,16 @@ async function getBookedIntervals(conn, dentistId, shiftId, workDate) {
        AND a.status NOT IN ('canceled','no_show')`,
     [dentistId, shiftId, workDate]
   );
-  return (rows || []).map((r) => {
-    return {
-      startMin: appointmentTimeToMinutes(r.appointment_time),
-      duration: Number(r.duration_minutes) || 30,
-    };
-  });
+  return (rows || []).map((r) => ({
+    startMin: appointmentTimeToMinutes(r.appointment_time),
+    duration: Number(r.duration_minutes) || 30,
+  }));
 }
 
-/** Đếm số khung giờ còn trống trong ca (theo duration dịch vụ, trừ lịch đã đặt chồng giờ). */
+/**
+ * Đếm số khung giờ còn trống cho MỘT bác sĩ trong ca.
+ * Duyệt từ start→end, bước nhảy = duration dịch vụ (vd 60p → 8:00, 9:00, 10:00).
+ */
 function countAvailableSlotsInShift(shiftStart, shiftEnd, duration, bookedIntervals) {
   let current = shiftTimeToMinutes(shiftStart);
   const endMin = shiftTimeToMinutes(shiftEnd);
@@ -78,7 +99,7 @@ function countAvailableSlotsInShift(shiftStart, shiftEnd, duration, bookedInterv
   return count;
 }
 
-/** Liệt kê các giờ bắt đầu còn trống trong ca. */
+/** Trả về mảng chuỗi giờ "08:00", "09:00"… để frontend hiển thị nút chọn. */
 function listAvailableSlotTimes(shiftStart, shiftEnd, duration, bookedIntervals) {
   let current = shiftTimeToMinutes(shiftStart);
   const endMin = shiftTimeToMinutes(shiftEnd);
@@ -95,7 +116,10 @@ function listAvailableSlotTimes(shiftStart, shiftEnd, duration, bookedIntervals)
   return slots;
 }
 
-/** Đếm số khung giờ có ít nhất một bác sĩ còn trống trong ca. */
+/**
+ * Đếm số khung giờ mà ÍT NHẤT một bác sĩ trong ca còn trống.
+ * Dùng khi khách chưa chọn bác sĩ cụ thể — tránh cộng dồn 12 bác sĩ × 3 slot.
+ */
 function countShiftSlotsWithAnyDentist(shiftStart, shiftEnd, duration, bookedIntervalsByDentist) {
   let current = shiftTimeToMinutes(shiftStart);
   const endMin = shiftTimeToMinutes(shiftEnd);

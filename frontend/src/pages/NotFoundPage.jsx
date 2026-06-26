@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: NotFoundPage.jsx — 404
+ */
 import { useNavigate } from 'react-router-dom';
 import PublicNavbar from '../components/PublicNavbar';
 import PublicFooter from '../components/PublicFooter';

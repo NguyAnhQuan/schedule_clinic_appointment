@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminShiftsPage.jsx — Cấu hình ca làm việc (sáng/chiều)
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken } from '../../services/api';

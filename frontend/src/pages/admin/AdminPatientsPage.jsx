@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminPatientsPage.jsx — CRUD bệnh nhân
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, resolveMediaUrl, toRelativeMediaPath } from '../../services/api';

@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminAccountsPage.jsx — CRUD tài khoản users
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken } from '../../services/api';

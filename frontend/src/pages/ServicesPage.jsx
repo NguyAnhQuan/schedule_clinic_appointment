@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: ServicesPage.jsx — Danh sách dịch vụ có lọc + phân trang
+ */
 import { useEffect, useState } from 'react';
 import { PublicApi, FILE_BASE } from '../services/api';
 import PublicNavbar from '../components/PublicNavbar';

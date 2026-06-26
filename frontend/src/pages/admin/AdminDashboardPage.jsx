@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminDashboardPage.jsx — Tổng quan thống kê, lịch hôm nay
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken } from '../../services/api';

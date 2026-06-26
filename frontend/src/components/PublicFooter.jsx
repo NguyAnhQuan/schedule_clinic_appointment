@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: PublicFooter.jsx — Chân trang công khai
+ */
 function PublicFooter() {
   return (
     <footer className="mt-10 border-t border-slate-200 bg-white">

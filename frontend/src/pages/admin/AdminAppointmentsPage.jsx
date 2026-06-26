@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminAppointmentsPage.jsx — Quản lý lịch hẹn, đổi trạng thái, phân trang
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken } from '../../services/api';

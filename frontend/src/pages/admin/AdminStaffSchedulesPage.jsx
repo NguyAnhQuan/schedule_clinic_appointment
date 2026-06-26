@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminStaffSchedulesPage.jsx — Xếp lịch trực bác sĩ theo ngày/ca
+ */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, getAuthUser } from '../../services/api';

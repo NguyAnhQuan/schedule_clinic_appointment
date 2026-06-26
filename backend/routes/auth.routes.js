@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: auth.routes.js — URL /api/auth/* (login, register, me)
+ */
 const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../middlewares/auth');

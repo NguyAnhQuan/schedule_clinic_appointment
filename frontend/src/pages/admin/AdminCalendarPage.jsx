@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: AdminCalendarPage.jsx — Lịch tổng quan theo tháng
+ */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminApi, getAuthToken, getAuthUser } from '../../services/api';

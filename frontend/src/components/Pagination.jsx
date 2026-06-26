@@ -1,3 +1,6 @@
+/**
+ * FILE_GUIDE: Pagination.jsx — Nút phân trang tái sử dụng (Trước/Sau, số trang)
+ */
 function Pagination({ page, total, limit, onPageChange }) {
   const totalPages = Math.max(1, Math.ceil((total || 0) / (limit || 1)));
   if (totalPages <= 1) return null;
